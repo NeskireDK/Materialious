@@ -31,6 +31,7 @@ export {
 	darkModeStore,
 	themeColorStore,
 	customLogoStore,
+	autoLoginStore,
 	showWarningStore,
 	interfaceRegionStore,
 	interfaceSearchSuggestionsStore,

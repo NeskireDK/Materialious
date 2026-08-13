@@ -31,6 +31,7 @@ import {
 	sponsorBlockUrlStore,
 	themeColorStore,
 	customLogoStore,
+	autoLoginStore,
 	interfaceAutoExpandChapters,
 	playerDefaultPlaybackSpeed,
 	playerCCByDefault,
@@ -124,6 +125,11 @@ export const persistedStores: PersistedStore<any>[] = [
 		schema: zLogoDataUrl,
 		excludeFromBackendSync: true,
 		excludeFromBookmarklet: true
+	},
+	{
+		name: 'autoLogin',
+		store: autoLoginStore,
+		schema: zBoolean
 	},
 	{
 		name: 'autoPlay',

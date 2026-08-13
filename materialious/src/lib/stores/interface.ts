@@ -23,6 +23,16 @@ export const customLogoStore: Writable<null | string> = persist(
 	'customLogo'
 );
 
+// Automatically start the Invidious token-authorization login flow when the
+// app loads with no stored token (e.g. behind an SSO / forward-auth proxy).
+// Off by default; seedable via VITE_DEFAULT_SETTINGS the same way as
+// themeColor.
+export const autoLoginStore: Writable<boolean> = persist(
+	writable(false),
+	createStorage(),
+	'autoLogin'
+);
+
 export const showWarningStore = persist(writable(true), createStorage(), 'showWarning');
 
 export const interfaceRegionStore: Writable<string> = persist(

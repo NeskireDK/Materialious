@@ -297,6 +297,8 @@
 		"expandChapters": "Expand chapters by default",
 		"expandComments": "Expand comments by default",
 		"allowInsecureRequests": "Allow insecure requests",
+		"autoLogin": "SSO auto-login (Authelia / forward-auth)",
+		"autoLoginHint": "Automatically start the Invidious login flow when no account is linked yet, so a forward-auth/SSO session logs you in without opening Settings. Tried once per browser session; won't retry if you cancel or it fails.",
 		"disableAutoUpdate": "Disable automatic updates",
 		"androidNativeShare": "Use native share",
 		"backendEngine": {

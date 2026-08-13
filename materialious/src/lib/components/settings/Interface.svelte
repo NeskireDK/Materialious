@@ -10,6 +10,7 @@
 	import { setInvidiousInstance, goToInvidiousLogin, invidiousLogout } from '$lib/auth';
 	import {
 		invidiousAuthStore,
+		autoLoginStore,
 		backendInUseStore,
 		invidiousInstanceStore,
 		interfaceAllowInsecureRequests,
@@ -129,6 +130,26 @@
 					<span>{$_('unlinkInvidious')}</span>
 				</button>
 			{/if}
+			<div class="space"></div>
+		{/if}
+		{#if !isOwnBackend()?.internalAuth && $invidiousInstanceStore}
+			<div class="field no-margin">
+				<nav class="no-padding">
+					<div class="max">
+						<div>{$_('layout.autoLogin')}</div>
+					</div>
+					<label class="switch" tabindex="0">
+						<input
+							type="checkbox"
+							bind:checked={$autoLoginStore}
+							onclick={() => autoLoginStore.set(!$autoLoginStore)}
+							role="switch"
+						/>
+						<span></span>
+					</label>
+				</nav>
+			</div>
+			<p><i>info</i> {$_('layout.autoLoginHint')}</p>
 			<div class="space"></div>
 		{/if}
 	{:else}
