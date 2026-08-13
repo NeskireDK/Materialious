@@ -276,6 +276,19 @@
 				"modern": "Modern",
 				"rounded": "Rounded",
 				"borderRadius": "Border radius"
+			},
+			"presets": {
+				"presets": "Color presets",
+				"active": "Active theme: {{name}}"
+			},
+			"branding": {
+				"branding": "Branding",
+				"upload": "Upload custom logo",
+				"hint": "SVG or PNG, up to 512 KB. Replaces the logo in the navigation.",
+				"invalidType": "Unsupported file type. Please choose an SVG or PNG image.",
+				"tooLarge": "That image is too large. Please choose a file under 512 KB.",
+				"readError": "Couldn't read that file. Please try again.",
+				"reset": "Reset to default logo"
 			}
 		},
 		"searchSuggestions": "Search suggestions",

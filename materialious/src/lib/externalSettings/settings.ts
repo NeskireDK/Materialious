@@ -30,6 +30,7 @@ import {
 	sponsorBlockStore,
 	sponsorBlockUrlStore,
 	themeColorStore,
+	customLogoStore,
 	interfaceAutoExpandChapters,
 	playerDefaultPlaybackSpeed,
 	playerCCByDefault,
@@ -89,6 +90,7 @@ export const zThemeColors = z.record(
 	}),
 	z.string().regex(/^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
 );
+export const zLogoDataUrl = z.string().regex(/^data:image\/(svg\+xml|png);base64,/);
 export const zSubtitles = z.object({
 	fontSize: z.number(),
 	color: z.string().regex(/^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/),
@@ -113,6 +115,15 @@ export const persistedStores: PersistedStore<any>[] = [
 		name: 'themeColor',
 		store: themeColorStore,
 		schema: zString
+	},
+	{
+		// A data URL can be a few hundred KB; keep it out of the backend
+		// key-value sync and the bookmarklet URL so neither breaks.
+		name: 'customLogo',
+		store: customLogoStore,
+		schema: zLogoDataUrl,
+		excludeFromBackendSync: true,
+		excludeFromBookmarklet: true
 	},
 	{
 		name: 'autoPlay',

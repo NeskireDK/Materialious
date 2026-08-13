@@ -15,6 +15,14 @@ export const themeColorStore: Writable<null | string> = persist(
 	'themeColor'
 );
 
+// Custom user-uploaded logo, stored as a data URL (image/svg+xml or
+// image/png). `null` means "use the default Materialious logo".
+export const customLogoStore: Writable<null | string> = persist(
+	writable(null),
+	createStorage(),
+	'customLogo'
+);
+
 export const showWarningStore = persist(writable(true), createStorage(), 'showWarning');
 
 export const interfaceRegionStore: Writable<string> = persist(

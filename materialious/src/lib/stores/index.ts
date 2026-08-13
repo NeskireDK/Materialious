@@ -30,6 +30,7 @@ export type { PlayerState, SleepTimerState, SubtitleSettings } from './player';
 export {
 	darkModeStore,
 	themeColorStore,
+	customLogoStore,
 	showWarningStore,
 	interfaceRegionStore,
 	interfaceSearchSuggestionsStore,

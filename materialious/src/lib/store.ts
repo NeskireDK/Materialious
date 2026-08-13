@@ -28,6 +28,7 @@ export {
 	defaultSubtitleSettings,
 	darkModeStore,
 	themeColorStore,
+	customLogoStore,
 	showWarningStore,
 	interfaceRegionStore,
 	interfaceSearchSuggestionsStore,
