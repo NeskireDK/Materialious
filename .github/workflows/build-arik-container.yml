@@ -2,6 +2,7 @@ name: Build ArikTube Materialious container
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches:
       - arik
@@ -34,6 +35,9 @@ jobs:
 
   build:
     needs: test
+    # Publishing is arik's alone. Without this guard a workflow_dispatch on any
+    # branch, or a pull request, would push that branch's tree as :latest.
+    if: github.ref == 'refs/heads/arik'
     runs-on: ubuntu-latest
     permissions:
       contents: read
