@@ -161,6 +161,7 @@
 			"copiedSuccess": "Copied to clipboard"
 		},
 		"download": "Download",
+		"downloadType": "Download type",
 		"downloadLoading": "Loading formats…",
 		"downloadBest": "Best quality",
 		"downloadAudio": "Audio only",
@@ -184,6 +185,7 @@
 		"addToPlaylist": "Add to playlist",
 		"youtubeJsFallBack": "Local video fallback being used",
 		"defaultLanguage": "Default Language",
+		"defaultSubtitleLanguage": "Default subtitle language",
 		"youtubeJsLoading": "Video failed to load, attempting to reload with local video fallback.",
 		"retryText": "Video failed to load, how would you like to continue?",
 		"enableYoutubejsTemp": "Use local video fallback once",
@@ -201,6 +203,10 @@
 			"textColor": "Text color",
 			"bgColor": "Background color",
 			"alignment": "Alignment",
+			"fontFamily": "Font family",
+			"opacity": "Opacity",
+			"subtitleOffset": "Subtitle timing",
+			"textShadow": "Text shadow",
 			"reset": "Reset defaults"
 		}
 	},
@@ -276,6 +282,19 @@
 				"modern": "Modern",
 				"rounded": "Rounded",
 				"borderRadius": "Border radius"
+			},
+			"presets": {
+				"presets": "Color presets",
+				"active": "Active theme: {{name}}"
+			},
+			"branding": {
+				"branding": "Branding",
+				"upload": "Upload custom logo",
+				"hint": "SVG or PNG, up to 512 KB. Replaces the logo in the navigation.",
+				"invalidType": "Unsupported file type. Please choose an SVG or PNG image.",
+				"tooLarge": "That image is too large. Please choose a file under 512 KB.",
+				"readError": "Couldn't read that file. Please try again.",
+				"reset": "Reset to default logo"
 			}
 		},
 		"searchSuggestions": "Search suggestions",
@@ -284,6 +303,8 @@
 		"expandChapters": "Expand chapters by default",
 		"expandComments": "Expand comments by default",
 		"allowInsecureRequests": "Allow insecure requests",
+		"autoLogin": "SSO auto-login (Authelia / forward-auth)",
+		"autoLoginHint": "Automatically start the Invidious login flow when no account is linked yet, so a forward-auth/SSO session logs you in without opening Settings. Tried once per browser session; won't retry if you cancel or it fails.",
 		"disableAutoUpdate": "Disable automatic updates",
 		"androidNativeShare": "Use native share",
 		"backendEngine": {

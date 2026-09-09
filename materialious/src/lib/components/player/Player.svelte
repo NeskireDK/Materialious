@@ -21,7 +21,6 @@
 		playerAndroidLockOrientation,
 		playerAndroidPauseOnNetworkChange,
 		playerAutoPlayStore,
-		playerCCByDefault,
 		playerDefaultLanguage,
 		playerDefaultPlaybackSpeed,
 		playerPreferredVolumeStore,
@@ -95,7 +94,7 @@
 		try {
 			await KeepAwake.keepAwake();
 		} catch {
-		    // Continue regardless
+			// Continue regardless
 		}
 	}
 
@@ -104,7 +103,7 @@
 		try {
 			await KeepAwake.allowSleep();
 		} catch {
-		    // Continue regardless
+			// Continue regardless
 		}
 	}
 
@@ -273,10 +272,6 @@
 
 			setActiveAudioTrack(player);
 			setActiveVideoTrack(player);
-
-			if ($playerCCByDefault) {
-				toggleSubtitles(player);
-			}
 
 			if ($playerAutoPlayStore) playerElement?.play();
 		});
@@ -460,10 +455,13 @@
 				bufferingGoal: 120,
 				rebufferingGoal: 2,
 				bufferBehind: 300,
+				// Jump over small gaps in the buffer instead of stalling
+				// until the user manually seeks.
+				gapDetectionThreshold: 1,
 				retryParameters: {
-					maxAttempts: 8,
+					maxAttempts: 4,
 					fuzzFactor: 0.5,
-					timeout: 30 * 1000
+					timeout: 15 * 1000
 				}
 			}
 		});
@@ -649,7 +647,7 @@
 		}
 
 		Mousetrap.bind($keybindStore.toggleSubtitles, () => {
-			toggleSubtitles(player);
+			toggleSubtitles();
 			showPlayerUI();
 			return false;
 		});
@@ -790,9 +788,7 @@
 			await setStatusBarColor();
 			await CapacitorMusicControls.destroy();
 
-			if ($isAndroidTvStore) {
-				document.removeEventListener('fullscreenchange', onAndroidFullscreenChange);
-			}
+			document.removeEventListener('fullscreenchange', onAndroidFullscreenChange);
 
 			if (androidOriginalOrigination) {
 				await ScreenOrientation.lock({

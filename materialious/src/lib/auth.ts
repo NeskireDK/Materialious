@@ -3,9 +3,11 @@ import { resolve } from '$app/paths';
 import { get } from 'svelte/store';
 import {
 	invidiousAuthStore,
+	autoLoginStore,
 	channelCacheStore,
 	feedCacheStore,
 	invidiousInstanceStore,
+	isAndroidTvStore,
 	playlistCacheStore,
 	rawMasterKeyStore,
 	searchCacheStore
@@ -16,6 +18,10 @@ import { Browser } from '@capacitor/browser';
 import { clearFeedYTjs } from './api/youtubejs/subscriptions';
 import { ensureNoTrailingSlash, isYTBackend } from './misc';
 import { deleteKeyValue } from './api/backend/keyvalue';
+
+// sessionStorage key used to make sure auto-login is only attempted once per
+// browser session, so a cancelled/failed authorization never redirect-loops.
+const AUTO_LOGIN_SESSION_KEY = 'materialiousAutoLoginAttempted';
 
 export function clearCaches() {
 	feedCacheStore.set({});
@@ -91,6 +97,71 @@ export async function goToInvidiousLogin() {
 		path.search = searchParams.toString();
 		document.location.href = path.toString();
 	}
+}
+
+function hasAutoLoginBeenAttemptedThisSession(): boolean {
+	try {
+		return sessionStorage.getItem(AUTO_LOGIN_SESSION_KEY) !== null;
+	} catch {
+		// sessionStorage unavailable (e.g. private browsing) - treat as already
+		// attempted so we never risk a loop.
+		return true;
+	}
+}
+
+function markAutoLoginAttempted(): void {
+	try {
+		sessionStorage.setItem(AUTO_LOGIN_SESSION_KEY, '1');
+	} catch {
+		// Nothing we can do if sessionStorage is unavailable.
+	}
+}
+
+/**
+ * Decides whether the silent auto-login flow should run for the given
+ * current pathname. Pulled out of `attemptAutoLogin` so the guard logic can
+ * be exercised without needing to actually kick off a redirect.
+ */
+export function shouldAttemptAutoLogin(currentPathname: string): boolean {
+	if (!get(autoLoginStore)) return false;
+
+	// Already have a token, nothing to do.
+	if (get(invidiousAuthStore)) return false;
+
+	// Android TV has its own (non-redirect) login dialog.
+	if (get(isAndroidTvStore)) return false;
+
+	// Own-backend internal auth and the YouTube backend don't use the
+	// Invidious token-authorization redirect flow.
+	if (isOwnBackend()?.internalAuth) return false;
+	if (isYTBackend()) return false;
+
+	// Nothing to authorize against.
+	if (!get(invidiousInstanceStore)) return false;
+
+	// Never fire while we're mid-callback on the token-authorization return path.
+	if (currentPathname === resolve('/invidious/auth', {})) return false;
+
+	if (hasAutoLoginBeenAttemptedThisSession()) return false;
+
+	return true;
+}
+
+/**
+ * Silently starts the same Invidious token-authorization redirect flow the
+ * manual "Login" button uses (see `goToInvidiousLogin`), but only once per
+ * browser session and only when there's no stored token yet. Gated behind
+ * the `autoLogin` setting (default off), seedable via VITE_DEFAULT_SETTINGS
+ * the same way as `themeColor`.
+ */
+export async function attemptAutoLogin(currentPathname: string): Promise<void> {
+	if (!shouldAttemptAutoLogin(currentPathname)) return;
+
+	// Mark as attempted before redirecting so a cancelled/failed
+	// authorization never retries until the next session.
+	markAutoLoginAttempted();
+
+	await goToInvidiousLogin();
 }
 
 export async function invidiousLogout() {

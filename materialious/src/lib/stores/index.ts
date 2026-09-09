@@ -12,6 +12,7 @@ export {
 	playerAndroidLockOrientation,
 	playerDefaultLanguage,
 	playerCCByDefault,
+	playerDefaultSubtitleLanguage,
 	playerDefaultPlaybackSpeed,
 	playerMiniplayerEnabled,
 	playerAndroidPauseOnNetworkChange,
@@ -24,12 +25,15 @@ export {
 	playerIsInWindowFullscreen,
 	playlistSettingsStore,
 	subtitleSettings,
-	defaultSubtitleSettings
+	defaultSubtitleSettings,
+	activeCaptionTrack
 } from './player';
-export type { PlayerState, SleepTimerState, SubtitleSettings } from './player';
+export type { PlayerState, SleepTimerState, SubtitleSettings, ActiveCaptionTrack } from './player';
 export {
 	darkModeStore,
 	themeColorStore,
+	customLogoStore,
+	autoLoginStore,
 	showWarningStore,
 	interfaceRegionStore,
 	interfaceSearchSuggestionsStore,

@@ -24,11 +24,13 @@
 	import { Capacitor } from '@capacitor/core';
 	import colorTheme, { convertToHexColorCode } from '$lib/android/plugins/colorTheme';
 	import { Browser } from '@capacitor/browser';
+	import { page } from '$app/state';
 	import {
 		bookmarkletLoadFromUrl,
 		loadSettingsFromEnv,
 		syncSettingsToBackend
 	} from '$lib/externalSettings';
+	import { attemptAutoLogin } from '$lib/auth';
 
 	let { children } = $props();
 
@@ -135,6 +137,8 @@
 		bookmarkletLoadFromUrl();
 
 		setThemeColors($interfaceAdvancedThemingStore);
+
+		attemptAutoLogin(page.url.pathname);
 	});
 
 	let syncToSettingsInitialized = false;
