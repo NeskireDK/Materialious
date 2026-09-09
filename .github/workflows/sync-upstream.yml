@@ -1,0 +1,109 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  SYNC_BRANCH: feature/sync-upstream
+  UPSTREAM_REMOTE: https://github.com/Materialious/Materialious.git
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      has-new-commits: ${{ steps.compare.outputs.has-new-commits }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: compare
+        run: |
+          git remote add upstream "$UPSTREAM_REMOTE"
+          git fetch --quiet upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "has-new-commits=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-new-commits=true" >> "$GITHUB_OUTPUT"
+            git log --oneline --no-merges HEAD..upstream/main | head -40
+          fi
+
+  sync:
+    needs: check-upstream
+    if: needs.check-upstream.outputs.has-new-commits == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Without this gh resolves a fork's default repo to the parent, where the
+      # sync branch does not exist.
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream into the sync branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "$UPSTREAM_REMOTE"
+          git fetch --quiet upstream main
+          git fetch --quiet origin
+
+          open_pr=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open_pr" ]; then
+            git checkout -B "$SYNC_BRANCH" "origin/$SYNC_BRANCH"
+          else
+            git checkout -B "$SYNC_BRANCH" origin/main
+          fi
+
+          if ! git merge upstream/main --no-edit; then
+            git merge --abort
+            echo "::error::Upstream does not merge cleanly. Resolve it by hand on a branch cut from main."
+            exit 1
+          fi
+
+          git push origin "$SYNC_BRANCH"
+          echo "OPEN_PR=$open_pr" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Verify the merged tree
+        id: verify
+        continue-on-error: true
+        working-directory: ./materialious
+        run: |
+          npm ci
+          npm run check
+          npm run eslint
+          npm run build
+
+      # A pull request opened with GITHUB_TOKEN does not trigger other
+      # workflows, so the container workflow's pull_request run never fires on
+      # this branch. That is why the checks above run here instead.
+      - name: Open or update the pull request
+        run: |
+          body=$(printf '%s\n' \
+            "Automated merge of \`upstream/main\`." \
+            "" \
+            "\`npm ci\` → \`npm run check\` → \`npm run eslint\` → \`npm run build\`: **${{ steps.verify.outcome }}**" \
+            "" \
+            "Merging publishes \`ghcr.io/neskiredk/materialious:latest\`, which Watchtower deploys.")
+          if [ -n "$OPEN_PR" ]; then
+            gh pr edit "$OPEN_PR" --body "$body"
+          else
+            gh pr create --base main --head "$SYNC_BRANCH" \
+              --title "Sync upstream into main" --body "$body"
+          fi
+
+      - name: Fail if the merged tree did not verify
+        if: steps.verify.outcome == 'failure'
+        run: exit 1
