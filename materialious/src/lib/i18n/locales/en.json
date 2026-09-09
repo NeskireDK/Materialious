@@ -136,6 +136,7 @@
 	"pages": {
 		"home": "Home",
 		"trending": "Trending",
+		"interests": "Interests",
 		"subscriptions": "Subscriptions",
 		"history": "History",
 		"playlists": "Playlists"

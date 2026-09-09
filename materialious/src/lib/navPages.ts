@@ -21,6 +21,12 @@ export function getPages(): Pages {
 			requiresAuth: false
 		},
 		{
+			icon: 'interests',
+			href: '/interests',
+			name: get(_)('pages.interests'),
+			requiresAuth: true
+		},
+		{
 			icon: 'subscriptions',
 			href: '/subscriptions',
 			name: get(_)('pages.subscriptions'),
