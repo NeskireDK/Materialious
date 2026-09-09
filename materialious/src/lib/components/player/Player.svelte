@@ -86,6 +86,7 @@
 
 	let segments: Segment[] = $state([]);
 	let segmentManualSkip: Segment | undefined = $state();
+	let pendingSkipTo: number | undefined;
 	let watchProgressInterval: ReturnType<typeof setInterval>;
 	let keepAwakeSupported = $state(false);
 
@@ -153,15 +154,20 @@
 		playerVolume = playerElement.volume;
 	}
 
+	function canSeekReliably(media: HTMLMediaElement): boolean {
+		return media.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(media.duration);
+	}
+
 	function skipSegment(segment: Segment) {
-		if (!playerElement) return;
+		if (!playerElement || !canSeekReliably(playerElement)) return;
+
+		const resumeAt = Math.min(segment.endTime + 1, playerElement.duration);
+		if (resumeAt <= playerElement.currentTime) return;
+		if (pendingSkipTo === resumeAt && playerElement.seeking) return;
 
 		segmentManualSkip = undefined;
-
-		if (Math.round(playerElement.currentTime) >= Math.round(playerElement.duration)) {
-			return;
-		}
-		playerElement.currentTime = segment.endTime + 1;
+		pendingSkipTo = resumeAt;
+		playerElement.currentTime = resumeAt;
 		if (!get(sponsorBlockDisplayToastStore)) {
 			addToast({
 				data: {
