@@ -5,7 +5,7 @@ on:
   pull_request:
   push:
     branches:
-      - arik
+      - main
 
 jobs:
   test:
@@ -35,9 +35,9 @@ jobs:
 
   build:
     needs: test
-    # Publishing is arik's alone. Without this guard a workflow_dispatch on any
+    # Publishing is main's alone. Without this guard a workflow_dispatch on any
     # branch, or a pull request, would push that branch's tree as :latest.
-    if: github.ref == 'refs/heads/arik'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
