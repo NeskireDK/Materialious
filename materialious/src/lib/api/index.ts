@@ -59,7 +59,12 @@ import {
 	getSubscriptionsBackend,
 	postSubscribeBackend
 } from './backend/subscriptions';
-import { getFeedInvidious, getPopularInvidious, getSubscriptionsInvidious } from './invidious/feed';
+import {
+	getFeedInvidious,
+	getPopularInvidious,
+	getSubscriptionsInvidious,
+	getTrendingInvidious
+} from './invidious/feed';
 import { getResolveUrlInvidious } from './invidious/misc';
 import { getVideoInvidious } from './invidious/video';
 import { getCommentsInvidious } from './invidious/comments';
@@ -105,6 +110,14 @@ export async function getPopular(fetchOptions?: RequestInit): Promise<Video[]> {
 	}
 
 	return getPopularInvidious(fetchOptions);
+}
+
+export async function getTrending(fetchOptions?: RequestInit): Promise<Video[]> {
+	if (isYTBackend()) {
+		return [];
+	}
+
+	return getTrendingInvidious(fetchOptions);
 }
 
 export async function getResolveUrl(url: string): Promise<ResolvedUrl> {

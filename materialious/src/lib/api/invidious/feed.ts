@@ -6,6 +6,11 @@ export async function getPopularInvidious(fetchOptions?: RequestInit): Promise<V
 	return await resp.json();
 }
 
+export async function getTrendingInvidious(fetchOptions?: RequestInit): Promise<Video[]> {
+	const resp = await fetchErrorHandle(await fetch(buildPath('trending'), fetchOptions));
+	return await resp.json();
+}
+
 export async function getFeedInvidious(
 	maxResults: number,
 	page: number,
