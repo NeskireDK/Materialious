@@ -15,6 +15,12 @@ export function getPages(): Pages {
 			requiresAuth: false
 		},
 		{
+			icon: 'whatshot',
+			href: '/trending',
+			name: get(_)('pages.trending'),
+			requiresAuth: false
+		},
+		{
 			icon: 'subscriptions',
 			href: '/subscriptions',
 			name: get(_)('pages.subscriptions'),
