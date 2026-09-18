@@ -30,7 +30,6 @@ export {
 	activeCaptionTrack,
 	darkModeStore,
 	themeColorStore,
-	customLogoStore,
 	autoLoginStore,
 	showWarningStore,
 	interfaceRegionStore,

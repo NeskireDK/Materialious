@@ -15,14 +15,6 @@ export const themeColorStore: Writable<null | string> = persist(
 	'themeColor'
 );
 
-// Custom user-uploaded logo, stored as a data URL (image/svg+xml or
-// image/png). `null` means "use the default Materialious logo".
-export const customLogoStore: Writable<null | string> = persist(
-	writable(null),
-	createStorage(),
-	'customLogo'
-);
-
 // Automatically start the Invidious token-authorization login flow when the
 // app loads with no stored token (e.g. behind an SSO / forward-auth proxy).
 // Off by default; seedable via VITE_DEFAULT_SETTINGS the same way as
