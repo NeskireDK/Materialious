@@ -10,13 +10,12 @@
 	import shaka from 'shaka-player/dist/shaka-player.ui';
 	import { KeepAwake } from '@capgo/capacitor-keep-awake';
 	import { SponsorBlock, type Category, type Segment } from 'sponsorblock-api';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { _ } from '$lib/i18n';
 	import { get } from 'svelte/store';
 	import { Slider } from 'melt/builders';
 	import type { VideoPlay } from '$lib/api/model';
 	import {
-		isAndroidTvStore,
 		playerAlwaysLoopStore,
 		playerAndroidLockOrientation,
 		playerAndroidPauseOnNetworkChange,
@@ -27,7 +26,6 @@
 		playerProxyVideosStore,
 		playerSavePlaybackPositionStore,
 		playerState,
-		playerTheatreModeIsActive,
 		playerIsInWindowFullscreen,
 		playerYouTubeJsFallback,
 		sponsorBlockCategoriesStore,
@@ -36,7 +34,7 @@
 		sponsorBlockUrlStore,
 		keybindStore
 	} from '$lib/store';
-	import { setStatusBarColor } from '$lib/theme';
+	import { setStatusBarColor } from '$lib/theme/index';
 	import { getVideoYTjs } from '$lib/api/youtubejs/video';
 	import {
 		goToNextVideo,
@@ -50,7 +48,9 @@
 	import type { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 	import { fade } from 'svelte/transition';
 	import { addToast } from '$lib/components/Toast.svelte';
-	import { getPublicEnv, isMobile, isUnrestrictedPlatform, isYTBackend } from '$lib/misc';
+	import { getPublicEnv } from '$lib/env';
+	import { isAndroidTv, isMobile } from '$lib/utils';
+	import { isUnrestrictedPlatform, isYTBackend } from '$lib/backend';
 	import { isOwnBackend } from '$lib/shared';
 	import Settings, { setActiveAudioTrack, setActiveVideoTrack } from './settings/Settings.svelte';
 	import CaptionSettings from './settings/CaptionSettings.svelte';
@@ -134,11 +134,6 @@
 		max: 1,
 		min: 0,
 		step: 0.01
-	});
-
-	playerTheatreModeIsActive.subscribe(async () => {
-		await tick();
-		updateVideoPlayerHeight();
 	});
 
 	function saveVolumePreference() {
@@ -242,8 +237,6 @@
 		if (document.fullscreenElement) {
 			document.exitFullscreen();
 			playerIsFullscreen = false;
-
-			setTimeout(() => updateVideoPlayerHeight(), 100);
 		} else {
 			playerContainer.requestFullscreen();
 			playerIsFullscreen = true;
@@ -268,7 +261,6 @@
 		player.addEventListener('loaded', () => {
 			restoreQualityPreference(player);
 			restoreDefaultLanguage(player);
-			updateVideoPlayerHeight();
 
 			setActiveAudioTrack(player);
 			setActiveVideoTrack(player);
@@ -354,18 +346,6 @@
 		}
 	}
 
-	// Due to how our player is rendered in layout for stateful pip
-	// we calaculate player height to then allow children pages
-	// to wrap around it.
-	function updateVideoPlayerHeight() {
-		if (!playerContainer) {
-			return;
-		}
-
-		const height = playerContainer.getBoundingClientRect().height;
-		document.documentElement.style.setProperty('--video-player-height', `${height + 10}px`);
-	}
-
 	let showPlayerUiTimeout: ReturnType<typeof setTimeout>;
 	function showPlayerUI() {
 		showControls = true;
@@ -421,7 +401,7 @@
 		if (
 			Capacitor.getPlatform() !== 'android' ||
 			data.video.adaptiveFormats.length === 0 ||
-			$isAndroidTvStore
+			isAndroidTv()
 		)
 			return;
 
@@ -474,9 +454,6 @@
 
 		// Change instantly to stop video from being loud for a second
 		restoreVolumePreference();
-
-		window.addEventListener('resize', updateVideoPlayerHeight);
-		updateVideoPlayerHeight();
 
 		if (playerElement) await player.attach(playerElement);
 
@@ -637,7 +614,7 @@
 			return false;
 		});
 
-		if (!$isAndroidTvStore) {
+		if (!isAndroidTv()) {
 			Mousetrap.bind($keybindStore.skipSponsor, () => {
 				if (segmentManualSkip) {
 					skipSegment(segmentManualSkip);
@@ -757,9 +734,6 @@
 				await reloadVideo();
 			}
 		}
-
-		// Update video player height again on video loaded.
-		updateVideoPlayerHeight();
 	});
 
 	async function getPlaybackHistory(): Promise<number> {
@@ -803,8 +777,6 @@
 			// Continue regardless of error
 		}
 
-		window.removeEventListener('resize', updateVideoPlayerHeight);
-
 		Mousetrap.unbind([
 			$keybindStore.togglePlay,
 			$keybindStore.toggleSubtitles,
@@ -815,7 +787,7 @@
 			$keybindStore.frameForward
 		]);
 
-		if (!$isAndroidTvStore) {
+		if (!isAndroidTv()) {
 			Mousetrap.unbind($keybindStore.skipSponsor);
 		}
 
@@ -832,9 +804,9 @@
 
 <div
 	id="player-container"
-	class:contain-video={!$isAndroidTvStore}
+	class:contain-video={!isAndroidTv()}
 	class:full-window={$playerIsInWindowFullscreen}
-	class:tv-contain-video={$isAndroidTvStore}
+	class:tv-contain-video={isAndroidTv()}
 	class:hide={showVideoRetry}
 	class:hide-cursor={!showControls}
 	role="presentation"
@@ -854,7 +826,7 @@
 		bind:this={playerElement}
 		poster={getBestThumbnail(data.video.videoThumbnails, 9999, 9999)}
 	></video>
-	{#if isEmbed && !$isAndroidTvStore}
+	{#if isEmbed && !isAndroidTv()}
 		<div
 			class="chip surface-container-highest"
 			style="position: absolute;top: 10px;left: 10px;font-size: 18px;"
@@ -901,7 +873,7 @@
 			bind:playerMaxKnownTime
 		/>
 		<nav>
-			{#if !$isAndroidTvStore}
+			{#if !isAndroidTv()}
 				<nav class="no-wrap">
 					<button class="surface-container-highest" onclick={toggleVideoPlaybackStatus}>
 						<i>
@@ -933,7 +905,7 @@
 						{videoLength(currentTime)} / {videoLength(data.video.lengthSeconds)}
 					{/if}
 				</p>
-				{#if !$isAndroidTvStore && !playerIsPip}
+				{#if !isAndroidTv() && !playerIsPip}
 					<CaptionSettings video={data.video} />
 					{#if playerElement}
 						<Settings {player} {playerElement} />

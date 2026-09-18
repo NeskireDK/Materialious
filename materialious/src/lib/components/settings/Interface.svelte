@@ -5,9 +5,21 @@
 	import { iso31661 } from 'iso-3166';
 	import { _ } from '$lib/i18n';
 	import { get } from 'svelte/store';
-	import { isUnrestrictedPlatform, timeout, shareURL, isMobile } from '$lib/misc';
+	import {
+		getMaterialiousBackendUrl,
+		isUnrestrictedPlatform,
+		remoteMaterialiousSupported
+	} from '$lib/backend';
+	import { timeout, isMobile } from '$lib/utils';
+	import { shareURL } from '$lib/download';
 	import { getPages, type Pages } from '$lib/navPages';
-	import { setInvidiousInstance, goToInvidiousLogin, invidiousLogout } from '$lib/auth';
+	import {
+		setInvidiousInstance,
+		goToInvidiousLogin,
+		invidiousLogout,
+		setMaterialiousBackend,
+		removeMaterialiousBackend
+	} from '$lib/auth';
 	import {
 		invidiousAuthStore,
 		autoLoginStore,
@@ -36,6 +48,27 @@
 	let invidiousInstance = $state(get(invidiousInstanceStore));
 
 	let invalidInstance = $state(false);
+
+	let materialiousBackend = $state(getMaterialiousBackendUrl());
+
+	let invalidMaterialiousBackend = $state(false);
+
+	async function setMaterialiousInstance(event: Event) {
+		event.preventDefault();
+		invalidMaterialiousBackend = !(await setMaterialiousBackend(materialiousBackend));
+
+		if (invalidMaterialiousBackend) return;
+
+		await timeout(100);
+		location.reload();
+	}
+
+	async function removeMaterialiousInstance() {
+		await removeMaterialiousBackend();
+
+		await timeout(100);
+		location.reload();
+	}
 
 	async function setInstance(event: Event) {
 		event.preventDefault();
@@ -174,6 +207,43 @@
 			</nav>
 		</div>
 	{/if}
+{/if}
+
+{#if remoteMaterialiousSupported()}
+	<div class="settings">
+		<form onsubmit={setMaterialiousInstance}>
+			<nav>
+				<div
+					class="field prefix label suffix surface-container-highest max"
+					class:invalid={invalidMaterialiousBackend}
+					style="min-width: 0"
+				>
+					<i>link</i>
+					<input
+						tabindex="0"
+						bind:value={materialiousBackend}
+						name="materialious-backend"
+						type="text"
+					/>
+					<label tabindex="-1" for="materialious-backend">{$_('materialiousBackendUrl')}</label>
+					{#if invalidMaterialiousBackend}
+						<span class="error">{$_('invalidInstance')}</span>
+					{/if}
+					{#if materialiousBackend}
+						<i
+							class="front"
+							role="presentation"
+							title={$_('removeMaterialiousBackend')}
+							onclick={removeMaterialiousInstance}>close</i
+						>
+					{/if}
+				</div>
+				<button class="circle" style="flex-shrink: 0">
+					<i>done</i>
+				</button>
+			</nav>
+		</form>
+	</div>
 {/if}
 
 <div class="field no-margin">

@@ -77,7 +77,17 @@
                 "modern": "Modern",
                 "rounded": "Lekerekített",
                 "borderRadius": "Szegélysugár"
-            }
+            },
+            "presets": "Előre beállított",
+            "saveAsPreset": "Mentés előbeállításként",
+            "exportTheme": "Téma exportálása",
+            "importTheme": "Téma importálása",
+            "themeName": "Téma neve",
+            "themeImported": "Téma importálva",
+            "themeImportFailed": "A téma importálása sikertelen",
+            "themeExported": "Téma exportálva",
+            "themeSaved": "Téma mentve",
+            "deletePreset": "Előbeállítás törlése"
         },
         "searchSuggestions": "Keresési javaslatok",
         "previewVideoOnHover": "Videó előnézete az egérmutatóval",
@@ -162,7 +172,7 @@
         "export": {
             "title": "Exportálás és importálás",
             "importSub": "Feliratkozások importálása",
-            "importSubSupported": "YouTube CSV/OPML/JSON, Invidious OPML/JSON, Freetube adatbázis és NewPipe JSON támogatott",
+            "importSubSupported": "YouTube CSV/OPML/JSON, Invidious OPML/JSON, FreeTube-adatbázis és NewPipe JSON támogatott. (Az Invidious JSON lassú.)",
             "importing": "Feliratkozások importálása (ez eltarthat egy ideig)",
             "importingCompleted": "Feliratkozások sikeresen importálva",
             "exportSub": "Feliratkozások exportálása",
@@ -266,7 +276,11 @@
             "textColor": "Szöveg színe",
             "bgColor": "Háttér színe",
             "alignment": "Igazítás",
-            "reset": "Alapértelmezések visszaállítása"
+            "reset": "Alapértelmezések visszaállítása",
+            "fontFamily": "Betűcsalád",
+            "opacity": "Átlátszatlanság",
+            "subtitleOffset": "Felirat időzítése",
+            "textShadow": "Szövegárnyék"
         },
         "pauseTimerFinished": "A szünetidő lejárt",
         "pauseOnNetworkChange": "A videó megállt a Wi-Fi-hálózat változása miatt",
@@ -277,7 +291,9 @@
         "downloadFormat": "Formátum",
         "downloadCanceled": "Letöltés megszakítva",
         "downloadComplete": "Letöltés befejeződött",
-        "downloadFailed": "Letöltés meghiúsult"
+        "downloadFailed": "Letöltés meghiúsult",
+        "downloadType": "Letöltés típusa",
+        "defaultSubtitleLanguage": "Alapértelmezett feliratnyelv"
     },
     "title": "Cím",
     "subscriptions": {
@@ -395,5 +411,11 @@
     "captchaVerified": "Jóváhagyva",
     "captchaFailed": "Sikertelen ellenőrzés",
     "subscribeFailed": "Feliratkozás sikertelen",
-    "unsubscribeFailed": "Leiratkozás sikertelen"
+    "unsubscribeFailed": "Leiratkozás sikertelen",
+    "materialiousBackend": "Materialious háttérprogram",
+    "materialiousBackendUrl": "Materialious webcím",
+    "materialiousLoginButton": "Bejelentkezés Materialious-fiókkal",
+    "materialiousLogout": "Kijelentkezés a Materialious-fiókból",
+    "downloadedCompletedAndroid": "Fájl mentve az Android „Letöltések” mappába",
+    "removeMaterialiousBackend": "Materialious példány eltávolítása"
 }

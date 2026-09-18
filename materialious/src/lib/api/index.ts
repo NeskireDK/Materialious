@@ -4,7 +4,6 @@ import {
 	invidiousAuthStore,
 	personalPlaylistsCacheStore,
 	playerYouTubeJsAlways,
-	rawMasterKeyStore,
 	watchHistoryEnabledStore
 } from '../store';
 import type {
@@ -26,7 +25,7 @@ import type {
 } from './model';
 import { commentsSetDefaults, searchSetDefaults, useEngineFallback } from './misc';
 import { getSearchYTjs } from './youtubejs/search';
-import { isUnrestrictedPlatform, isYTBackend } from '$lib/misc';
+import { isMaterialiousAccountActive, isUnrestrictedPlatform, isYTBackend } from '$lib/backend';
 import { getSearchSuggestionsYTjs } from './youtubejs/searchSuggestions';
 import { getResolveUrlYTjs } from './youtubejs/misc';
 import { getCommentsYTjs } from './youtubejs/comments';
@@ -102,6 +101,7 @@ import {
 import { localDb } from '$lib/dexie';
 import { getBestThumbnail } from '$lib/images';
 import type { ThumbnailVideo } from '$lib/thumbnail';
+import { backendFetch } from './backend/request';
 
 export async function getPopular(fetchOptions?: RequestInit): Promise<Video[]> {
 	// Doesn't exist in YTjs.
@@ -277,7 +277,7 @@ export async function notificationsMarkAsRead(fetchOptions: RequestInit = {}) {
 
 export async function getSubscriptions(fetchOptions: RequestInit = {}): Promise<Subscription[]> {
 	if (isYTBackend()) {
-		if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+		if (isMaterialiousAccountActive()) {
 			return (await getSubscriptionsBackend()).map((sub) => {
 				return {
 					author: sub.channelName,
@@ -297,7 +297,7 @@ export async function amSubscribed(
 	fetchOptions: RequestInit = {}
 ): Promise<boolean> {
 	if (isYTBackend()) {
-		if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+		if (isMaterialiousAccountActive()) {
 			return amSubscribedBackend(authorId);
 		}
 
@@ -313,7 +313,7 @@ export async function postSubscribe(
 	fetchOptions: RequestInit = {}
 ) {
 	if (isYTBackend()) {
-		if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+		if (isMaterialiousAccountActive()) {
 			return postSubscribeBackend(authorId, authorName);
 		}
 
@@ -327,7 +327,7 @@ export async function deleteUnsubscribe(authorId: string, fetchOptions: RequestI
 	if (isYTBackend()) {
 		// deleteUnsubscribeYTjs still should run
 		// as cleans feeds of that channel.
-		if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+		if (isMaterialiousAccountActive()) {
 			deleteUnsubscribeBackend(authorId);
 		}
 
@@ -346,7 +346,7 @@ export async function getWatchHistory(
 ): Promise<VideoWatchHistory[]> {
 	if (!get(watchHistoryEnabledStore)) return [];
 
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return getWatchHistoryBackend(options);
 	}
 
@@ -383,7 +383,7 @@ export async function getVideoWatchHistory(
 ): Promise<VideoWatchHistory | undefined> {
 	if (!get(watchHistoryEnabledStore)) return;
 
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return getVideoWatchHistoryBackend(videoId);
 	}
 
@@ -391,7 +391,7 @@ export async function getVideoWatchHistory(
 }
 
 export async function deleteWatchHistory() {
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return deleteWatchHistoryBackend();
 	}
 
@@ -399,7 +399,7 @@ export async function deleteWatchHistory() {
 }
 
 export async function deleteWatchHistoryItem(videoId: string) {
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return deleteWatchHistoryItemBackend(videoId);
 	}
 
@@ -413,7 +413,7 @@ export async function updateWatchHistory(
 ) {
 	if (!get(watchHistoryEnabledStore)) return;
 
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return updateWatchHistoryBackend(videoId, progress);
 	}
 
@@ -425,7 +425,7 @@ export async function updateWatchHistory(
 export async function saveWatchHistory(video: ThumbnailVideo, progress: number = 0) {
 	if (!get(watchHistoryEnabledStore)) return;
 
-	if (isOwnBackend()?.internalAuth && get(rawMasterKeyStore)) {
+	if (isMaterialiousAccountActive()) {
 		return saveWatchHistoryBackend(video, progress);
 	}
 
@@ -529,7 +529,7 @@ export async function getDownloadFormats(video: VideoPlay): Promise<AvailableFor
 	}
 
 	if (isOwnBackend()) {
-		const resp = await fetch('/api/download/formats', {
+		const resp = await backendFetch('/api/download/formats', {
 			method: 'POST',
 			body: JSON.stringify({ videoId: video.videoId }),
 			credentials: 'same-origin'

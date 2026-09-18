@@ -5,10 +5,11 @@
 		interfaceAmoledTheme,
 		interfaceBorderRadiusStore,
 		invidiousAuthStore,
-		isAndroidTvStore,
+		materialiousBackendStore,
 		rawMasterKeyStore,
 		themeColorStore
 	} from '$lib/store';
+	import { isAndroidTv } from '$lib/utils';
 	import ui from 'beercss';
 	import { App } from '@capacitor/app';
 	import { goto } from '$app/navigation';
@@ -17,7 +18,13 @@
 	import 'beercss';
 	import 'material-dynamic-colors';
 
-	import { setAmoledTheme, setStatusBarColor, setTheme, setThemeColors } from '$lib/theme';
+	import {
+		clearThemeColors,
+		setAmoledTheme,
+		setStatusBarColor,
+		setTheme,
+		setThemeColors
+	} from '$lib/theme/index';
 
 	import { pwaInfo } from 'virtual:pwa-info';
 	import { onMount } from 'svelte';
@@ -31,8 +38,22 @@
 		syncSettingsToBackend
 	} from '$lib/externalSettings';
 	import { attemptAutoLogin } from '$lib/auth';
+	import { configBackend } from '$lib/api/backend';
+	import { configBackendCache } from '$lib/stores/backend';
 
 	let { children } = $props();
+
+	materialiousBackendStore.subscribe(async () => {
+		let config;
+		try {
+			config = await configBackend();
+		} catch {
+			config = null;
+		}
+		if (!config) return;
+
+		configBackendCache.set(config);
+	});
 
 	themeColorStore.subscribe(async (hex) => {
 		if (!hex || Object.keys($interfaceAdvancedThemingStore).length > 0) return;
@@ -40,7 +61,11 @@
 	});
 
 	interfaceAdvancedThemingStore.subscribe(async (colors) => {
-		setThemeColors(colors);
+		if (Object.keys(colors).length === 0) {
+			clearThemeColors();
+		} else {
+			setThemeColors(colors);
+		}
 		await setStatusBarColor();
 	});
 
@@ -155,7 +180,7 @@
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 	{@html webManifestLink}
 
-	{#if $isAndroidTvStore}
+	{#if isAndroidTv()}
 		<style>
 			not(.item-select):focus {
 				outline: 2px solid var(--primary);

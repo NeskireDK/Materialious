@@ -2,7 +2,7 @@ import { Capacitor, SystemBarType } from '@capacitor/core';
 import ui from 'beercss';
 import { get } from 'svelte/store';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
-import { darkModeStore, interfaceAmoledTheme } from './store';
+import { darkModeStore, interfaceAmoledTheme } from '../store';
 
 export type ThemeKey =
 	| '--primary'
@@ -119,6 +119,51 @@ export function setTheme() {
 export function setThemeColors(theme: ThemeColors) {
 	for (const [themeKey, themeValue] of Object.entries(theme)) {
 		setThemeColor(themeKey as ThemeKey, themeValue.trim());
+	}
+}
+
+export function clearThemeColors() {
+	const allKeys: ThemeKey[] = [
+		'--primary',
+		'--on-primary',
+		'--primary-container',
+		'--on-primary-container',
+		'--secondary',
+		'--on-secondary',
+		'--secondary-container',
+		'--on-secondary-container',
+		'--tertiary',
+		'--on-tertiary',
+		'--tertiary-container',
+		'--on-tertiary-container',
+		'--error',
+		'--on-error',
+		'--error-container',
+		'--on-error-container',
+		'--background',
+		'--on-background',
+		'--surface',
+		'--on-surface',
+		'--surface-variant',
+		'--on-surface-variant',
+		'--outline',
+		'--outline-variant',
+		'--shadow',
+		'--scrim',
+		'--inverse-surface',
+		'--inverse-on-surface',
+		'--inverse-primary',
+		'--surface-dim',
+		'--surface-bright',
+		'--surface-container-lowest',
+		'--surface-container-low',
+		'--surface-container',
+		'--surface-container-high',
+		'--surface-container-highest'
+	];
+	for (const key of allKeys) {
+		document.documentElement.style.removeProperty(key);
+		document.body.style.removeProperty(key);
 	}
 }
 

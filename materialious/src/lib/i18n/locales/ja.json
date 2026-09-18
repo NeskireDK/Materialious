@@ -125,7 +125,11 @@
             "textColor": "文字色",
             "bgColor": "背景色",
             "alignment": "整列",
-            "reset": "既定値にリセット"
+            "reset": "既定値にリセット",
+            "fontFamily": "フォント",
+            "opacity": "不透明度",
+            "subtitleOffset": "字幕のタイミング",
+            "textShadow": "テキストの影"
         },
         "pauseTimerFinished": "一時停止タイマーが終了しました",
         "pauseOnNetworkChange": "Wi-Fiネットワークの変更により、動画が一時停止しました",
@@ -136,7 +140,9 @@
         "downloadComplete": "ダウンロード完了",
         "downloadFailed": "ダウンロード失敗",
         "downloadVideoAudio": "動画と音声",
-        "downloadFormat": "フォーマット"
+        "downloadFormat": "フォーマット",
+        "downloadType": "ダウンロードタイプ",
+        "defaultSubtitleLanguage": "デフォルトの字幕言語"
     },
     "layout": {
         "interface": "外観",
@@ -165,7 +171,17 @@
                 "slight": "小",
                 "modern": "中",
                 "rounded": "大"
-            }
+            },
+            "presets": "プリセット",
+            "saveAsPreset": "プリセットとして保存",
+            "exportTheme": "テーマをエクスポート",
+            "importTheme": "テーマをインポート",
+            "themeName": "テーマ名",
+            "themeImported": "テーマがインポートされました",
+            "themeImportFailed": "テーマのインポートに失敗しました",
+            "themeExported": "テーマをエクスポートしました",
+            "themeSaved": "テーマを保存しました",
+            "deletePreset": "プリセットを削除"
         },
         "searchSuggestions": "検索候補を表示",
         "previewVideoOnHover": "マウスを乗せるとプレビュー",
@@ -267,7 +283,7 @@
         "export": {
             "title": "エクスポート/インポート",
             "importSub": "登録チャンネルをインポート",
-            "importSubSupported": "YouTube CSV/OPML/JSON、Invidious OPML/JSON、Freetube データベース、NewPipe JSON をサポート",
+            "importSubSupported": "YouTube (CSV/OPML/JSON）、Invidious (OPML/JSON）、FreeTubeデータベース、NewPipe (JSON) に対応しています。（Invidious JSONは低速です)",
             "importing": "登録チャンネルをインポートしています (少し時間がかかります)",
             "importingCompleted": "登録チャンネルを正常にインポートしました",
             "exportSub": "登録チャンネルをエクスポート",
@@ -395,5 +411,11 @@
     "captchaVerified": "検証済み",
     "captchaFailed": "検証に失敗",
     "subscribeFailed": "登録に失敗しました",
-    "unsubscribeFailed": "登録解除に失敗しました"
+    "unsubscribeFailed": "登録解除に失敗しました",
+    "materialiousBackend": "Materialious バックエンド",
+    "materialiousBackendUrl": "Materialious URL",
+    "materialiousLoginButton": "Materialious アカウントでログイン",
+    "materialiousLogout": "Materialious アカウントからログアウト",
+    "downloadedCompletedAndroid": "ファイルが Android のダウンロードフォルダーに保存されました",
+    "removeMaterialiousBackend": "Materialious インスタンスを削除する"
 }

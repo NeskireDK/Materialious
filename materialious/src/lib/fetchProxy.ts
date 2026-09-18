@@ -1,4 +1,6 @@
-import { isUnrestrictedPlatform, timeout } from '$lib/misc';
+import { getPublicEnv } from '$lib/env';
+import { isUnrestrictedPlatform } from '$lib/backend';
+import { timeout } from '$lib/utils';
 import { Capacitor } from '@capacitor/core';
 import sodium from 'libsodium-wrappers-sumo';
 import { isOwnBackend } from './shared';
@@ -84,7 +86,11 @@ export const fetchProxied = async (
 	return originalFetch(requestInput, requestOptions);
 };
 
-if (isUnrestrictedPlatform() && Capacitor.getPlatform() !== 'electron') {
+if (
+	isUnrestrictedPlatform() &&
+	Capacitor.getPlatform() !== 'electron' &&
+	getPublicEnv('PROXY_DISABLED') !== 'true'
+) {
 	window.fetch = fetchProxied;
 
 	const originalXhrOpen = XMLHttpRequest.prototype.open;

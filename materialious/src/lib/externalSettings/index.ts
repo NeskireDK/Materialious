@@ -2,30 +2,36 @@ import { page } from '$app/state';
 import { get } from 'svelte/store';
 import { z } from 'zod';
 
-import { persistedStores, type PersistedStore } from './settings';
+import { persistedStores, ensureBackendPersistedStores, type PersistedStore } from './settings';
 
-import { isOwnBackend } from '$lib/shared';
+import { getPublicEnv } from '$lib/env';
+import { isMaterialiousAccountActive } from '$lib/backend';
 import { addOrUpdateKeyValue, getKeyValue } from '$lib/api/backend/keyvalue';
 import { rawMasterKeyStore } from '$lib/store';
-import { getPublicEnv } from '$lib/misc';
 
 const dontAutoSync = ['authToken'];
 
 export async function syncSettingsToBackend() {
-	if (!isOwnBackend() || !get(rawMasterKeyStore)) return;
+	if (!isMaterialiousAccountActive() || !get(rawMasterKeyStore)) return;
+
+	ensureBackendPersistedStores();
 
 	await Promise.all(
 		persistedStores.map(async (store) => {
 			if (store.excludeFromBackendSync || dontAutoSync.includes(store.name)) return;
 
-			getKeyValue(store.name).then((currentKeyValue) => {
-				if (currentKeyValue !== null) {
-					const currentKeyValueParsed = parseWithSchema(store.schema, currentKeyValue);
-					if (currentKeyValueParsed !== null && currentKeyValueParsed !== undefined) {
-						store.store.set(currentKeyValueParsed);
+			getKeyValue(store.name)
+				.then((currentKeyValue) => {
+					if (currentKeyValue !== null) {
+						const currentKeyValueParsed = parseWithSchema(store.schema, currentKeyValue);
+						if (currentKeyValueParsed !== null && currentKeyValueParsed !== undefined) {
+							store.store.set(currentKeyValueParsed);
+						}
 					}
-				}
-			});
+				})
+				.catch(() => {
+					// Remote instance unreachable, keep local value.
+				});
 
 			let initialLoad = true;
 			store.store.subscribe((value) => {
@@ -41,7 +47,9 @@ export async function syncSettingsToBackend() {
 				return addOrUpdateKeyValue(
 					store.name,
 					store.serialize ? store.serialize(value) : value?.toString()
-				);
+				).catch(() => {
+					// Remote instance unreachable while syncing.
+				});
 			});
 		})
 	);
@@ -63,10 +71,18 @@ export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown): T | unde
 	}
 }
 
-function setStores(toSet: Record<string, unknown>, overwriteExisting = false) {
+function setStores(
+	toSet: Record<string, unknown>,
+	overwriteExisting = false,
+	allowedNames?: Set<string>
+) {
 	if (!overwriteExisting) return;
 
-	for (const { name, store, schema } of persistedStores) {
+	const stores = allowedNames
+		? persistedStores.filter((s) => allowedNames.has(s.name))
+		: persistedStores;
+
+	for (const { name, store, schema } of stores) {
 		const raw = toSet[name];
 		if (raw === undefined) continue;
 
@@ -77,7 +93,10 @@ function setStores(toSet: Record<string, unknown>, overwriteExisting = false) {
 	}
 }
 
-export async function loadSettingsFromFile(file: File) {
+export async function loadSettingsFromFile(
+	file: File,
+	storeNames?: string[]
+) {
 	const fileContents = await file.text();
 
 	let fileJson: Record<any, any> | undefined;
@@ -89,7 +108,8 @@ export async function loadSettingsFromFile(file: File) {
 
 	if (!fileJson) return;
 
-	setStores(fileJson, true);
+	const allowedNames = storeNames ? new Set(storeNames) : undefined;
+	setStores(fileJson, true, allowedNames);
 }
 
 export function loadSettingsFromEnv() {
