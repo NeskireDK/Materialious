@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - 'feature/sync-upstream-*'
 
 jobs:
   test:
@@ -35,9 +36,10 @@ jobs:
 
   build:
     needs: test
-    # Publishing is main's alone. Without this guard a workflow_dispatch on any
+    # :latest is main's alone. Without this guard a workflow_dispatch on any
     # branch, or a pull request, would push that branch's tree as :latest.
-    if: github.ref == 'refs/heads/main'
+    # A sync branch publishes :beta instead, for the ytb.ariksen.dk instance.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/sync-upstream-')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -63,7 +65,8 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=beta,enable=${{ startsWith(github.ref, 'refs/heads/feature/sync-upstream-') }}
             type=sha
 
       - name: Build and push
