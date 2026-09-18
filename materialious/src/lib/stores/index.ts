@@ -32,7 +32,6 @@ export type { PlayerState, SleepTimerState, SubtitleSettings, ActiveCaptionTrack
 export {
 	darkModeStore,
 	themeColorStore,
-	customLogoStore,
 	autoLoginStore,
 	showWarningStore,
 	interfaceRegionStore,

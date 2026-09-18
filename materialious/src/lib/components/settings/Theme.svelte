@@ -17,14 +17,11 @@
 		interfaceAmoledTheme,
 		interfaceBorderRadiusStore,
 		isAndroidTvStore,
-		themeColorStore,
-		customLogoStore
+		themeColorStore
 	} from '../../store';
 	import { onMount, tick } from 'svelte';
 	import { titleCase } from '$lib/letterCasing';
 	import { THEME_PRESETS, resolvePresetName, type ThemePreset } from '$lib/themePresets';
-	import { validateLogoFile, readFileAsDataUrl } from '$lib/branding';
-	import { addToast } from '../Toast.svelte';
 
 	let colorPickerOpen = $state(false);
 	let colorPickerDebounce: ReturnType<typeof setTimeout>;
@@ -90,36 +87,6 @@
 
 		setAmoledTheme();
 		currentThemeColors = await getDynamicTheme();
-	}
-
-	let logoInputKey = $state(0);
-
-	async function onLogoFileChange(event: Event) {
-		const files = (event.target as HTMLInputElement).files;
-		if (!files || files.length === 0) return;
-
-		const file = files[0];
-		const validationError = validateLogoFile(file);
-
-		if (validationError === 'invalidType') {
-			addToast({ data: { text: $_('layout.theme.branding.invalidType'), icon: 'error' } });
-		} else if (validationError === 'tooLarge') {
-			addToast({ data: { text: $_('layout.theme.branding.tooLarge'), icon: 'error' } });
-		} else {
-			try {
-				customLogoStore.set(await readFileAsDataUrl(file));
-			} catch {
-				addToast({ data: { text: $_('layout.theme.branding.readError'), icon: 'error' } });
-			}
-		}
-
-		// Reset the file input so picking the same file again re-triggers onchange.
-		logoInputKey++;
-	}
-
-	function resetLogo() {
-		customLogoStore.set(null);
-		logoInputKey++;
 	}
 
 	async function toggleDarkMode() {
@@ -189,37 +156,6 @@
 </div>
 <div class="space"></div>
 <p>{$_('layout.theme.presets.active', { name: activePresetName })}</p>
-
-<div class="space"></div>
-
-<h5>{$_('layout.theme.branding.branding')}</h5>
-<div class="space"></div>
-
-{#if $customLogoStore}
-	<div class="logo-preview surface-container-highest">
-		<img src={$customLogoStore} alt="" />
-	</div>
-	<div class="space"></div>
-{/if}
-
-<div>
-	<button class="surface-container-highest">
-		<i>upload</i>
-		<span>{$_('layout.theme.branding.upload')}</span>
-	</button>
-	{#key logoInputKey}
-		<input onchange={onLogoFileChange} accept="image/svg+xml,image/png" type="file" />
-	{/key}
-</div>
-<p><i>info</i> {$_('layout.theme.branding.hint')}</p>
-
-{#if $customLogoStore}
-	<div class="space"></div>
-	<button class="border" onclick={resetLogo}>
-		<i>restart_alt</i>
-		<span>{$_('layout.theme.branding.reset')}</span>
-	</button>
-{/if}
 
 <div class="space"></div>
 
@@ -355,19 +291,5 @@
 		border-radius: 50%;
 		border: 1px solid var(--outline-variant);
 		flex-shrink: 0;
-	}
-
-	.logo-preview {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 1rem;
-		border-radius: var(--border-radius, 0.5rem);
-	}
-
-	.logo-preview img {
-		max-height: 80px;
-		max-width: 100%;
-		object-fit: contain;
 	}
 </style>

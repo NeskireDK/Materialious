@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ui from 'beercss';
 	import { onMount } from 'svelte';
-	import { customLogoStore, darkModeStore, themeColorStore } from '../store';
+	import { darkModeStore, themeColorStore } from '../store';
 	import { getDynamicTheme } from '../theme';
 
 	interface Props {
@@ -33,44 +33,16 @@
 	});
 </script>
 
-{#if $customLogoStore}
-	<img
-		src={$customLogoStore}
-		alt="Materialious"
-		class={classes}
-		style={`height:${size};width:${size};object-fit:contain;`}
-	/>
-{:else}
-	<svg
-		version="1.1"
-		class={classes}
-		height={size}
-		width={size}
-		xml:space="preserve"
-		xmlns="http://www.w3.org/2000/svg"
-		viewBox="50.17 104.37 109.67 88.27"
-		><defs id="defs1" /><g id="layer1"
-			><g id="g6" transform="matrix(1.0140222,0,0,1.0140222,-1.4722742,-56.323482)"
-				><g id="g1" transform="matrix(-1,0,0,1,201.63735,-7.4456246e-6)"
-					><g id="g5"
-						><path
-							id="path5"
-							style={`color:#000000;fill:${fillColor};stroke-linecap:square;-inkscape-stroke:none;paint-order:stroke markers fill`}
-							d="m 114.65661,173.40906 -1.29294,4.82606 h -5.2e-4 l -44.404523,11.89798 32.504993,32.50551 10e-4,0.001 -6.12107,22.84563 -26.381853,-26.38185 -26.381335,-26.38134 36.03811,-9.65625 z m -4.28191,15.97939 -5.37486,20.05872 -0.54622,2.03915 -16.176276,-16.17679 z"
-						/><path
-							style={`color:#000000;fill:${fillColor};stroke-linecap:square;-inkscape-stroke:none;paint-order:stroke markers fill`}
-							d="M 131.38171,245.48534 105,219.10365 l -26.381696,-26.3817 36.038076,-9.65637 36.03807,-9.65638 -9.65637,36.03807 z"
-							id="path3"
-						/></g
-					></g
-				><circle
-					style={`opacity:1;fill:${fillColor};fill-opacity:1;stroke:none;stroke-width:10.8326;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill`}
-					id="path6"
-					cx="86.980743"
-					cy="163.40662"
-					r="4.9097047"
-				/></g
-			></g
-		></svg
-	>
-{/if}
+<svg
+	class={classes}
+	height={size}
+	width={size}
+	viewBox="0 0 24 24"
+	xmlns="http://www.w3.org/2000/svg"
+	role="img"
+	aria-label="ArikTube"
+	><path
+		fill={fillColor}
+		d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
+	/></svg
+>
