@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ParsedDescription, Timestamp } from '$lib/description';
-	import { invidiousInstanceStore, isAndroidTvStore, sponsorBlockTimelineStore, keybindStore } from '$lib/store';
+	import { invidiousInstanceStore, sponsorBlockTimelineStore, keybindStore } from '$lib/store';
 	import type { Segment } from 'sponsorblock-api';
 	import { Slider } from 'melt/builders';
 	import { _ } from '$lib/i18n';
@@ -15,7 +15,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { createArrowSeek } from '$lib/player/arrowSeek';
 	import { videoLength } from '$lib/numbers';
-	import { truncate } from '$lib/misc';
+	import { isAndroidTv, truncate } from '$lib/utils';
 	import { mergeAttrs } from 'melt';
 	import Mousetrap from 'mousetrap';
 
@@ -38,7 +38,7 @@
 		content: ParsedDescription;
 		segments: Segment[];
 		playerMaxKnownTime: number;
-		playerIsPip: boolean
+		playerIsPip: boolean;
 	} = $props();
 
 	let playerSliderInteracted = $state(false);
@@ -301,7 +301,7 @@
 
 <div
 	class="player-slider full-width"
-	class:disable-tv={$isAndroidTvStore}
+	class:disable-tv={isAndroidTv()}
 	{...mergeAttrs(playerTimelineSlider.root, {
 		tabindex: -1
 	})}
@@ -368,13 +368,13 @@
 	{#if !$sponsorBlockTimelineStore}
 		{#each segments as segment (segment)}
 			{@const colors = segmentCategoryColors[segment.category] ?? segmentCategoryColors.sponsor}
-				<div
-					class="chapter-marker segment-marker"
-					style:left="{(segment.startTime / playerMaxKnownTime) * 100}%"
-					style:width={timelineMarkerWidth(segment.startTime, segment.endTime)}
-					style:--sg-color={colors.color}
-					style:--sg-color-alt={colors.alt}
-				></div>
+			<div
+				class="chapter-marker segment-marker"
+				style:left="{(segment.startTime / playerMaxKnownTime) * 100}%"
+				style:width={timelineMarkerWidth(segment.startTime, segment.endTime)}
+				style:--sg-color={colors.color}
+				style:--sg-color-alt={colors.alt}
+			></div>
 		{/each}
 	{/if}
 </div>

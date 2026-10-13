@@ -1,41 +1,18 @@
 <script lang="ts">
-	import { onMount, type Component } from 'svelte';
+	import { onMount } from 'svelte';
 	import { _ } from '$lib/i18n';
-	import DeArrow from './DeArrow.svelte';
-	import Interface from './Interface.svelte';
-	import Player from './Player.svelte';
-	import Ryd from './RYD.svelte';
-	import SponsorBlock from './SponsorBlock.svelte';
-	import { isAndroidTvStore, rawMasterKeyStore } from '$lib/store';
-	import About from './About.svelte';
-	import Engine from './Engine.svelte';
-	import { isUnrestrictedPlatform, keyCodeMap } from '$lib/misc';
-	import { isOwnBackend, isAdminUsername } from '$lib/shared';
-	import InternalAccount from './InternalAccount.svelte';
-	import Admin from './Admin.svelte';
+	import { materialiousBackendStore, rawMasterKeyStore } from '$lib/store';
+	import { keyCodeMap } from '$lib/utils';
 	import { getNextFocus } from '@bbc/tv-lrud-spatial';
-	import Filters from './Filters.svelte';
-	import ExportImport from './ExportImport.svelte';
-	import Theme from './Theme.svelte';
-	import Binds from './Binds.svelte';
-	import { Capacitor } from '@capacitor/core';
+	import {
+		getSettingsTabs,
+		getTabLabel,
+		updateAccountTabs,
+		type SettingsTab,
+		type SettingsTabCategories
+	} from './tabs';
 
-	type TabCategories =
-		| 'interface'
-		| 'player'
-		| 'ryd'
-		| 'sponsorblock'
-		| 'dearrow'
-		| 'about'
-		| 'engine'
-		| 'account'
-		| 'admin'
-		| 'filters'
-		| 'export'
-		| 'theme'
-		| 'binds';
-
-	let activeTab: TabCategories = $state('interface');
+	let activeTab: SettingsTabCategories = $state('interface');
 
 	let triggerListElement: HTMLElement | undefined = $state();
 	let mobileTriggerListElement: HTMLElement | undefined = $state();
@@ -51,7 +28,7 @@
 
 		if (nextFocus && nextFocus.id) {
 			event.preventDefault();
-			const tabId = nextFocus.id.replace('tab-trigger-', '') as TabCategories;
+			const tabId = nextFocus.id.replace('tab-trigger-', '') as SettingsTabCategories;
 			activeTab = tabId;
 			nextFocus.focus();
 		}
@@ -61,85 +38,14 @@
 
 	let mobileCategoriesButton: HTMLElement | undefined = $state();
 
-	let tabs: { id: TabCategories; label: string; icon: string; component: Component }[] = $state([
-		{ id: 'interface', label: $_('layout.interface'), icon: 'grid_view', component: Interface },
-		{ id: 'theme', label: $_('layout.theme.theme'), icon: 'colors', component: Theme },
-		{ id: 'player', label: $_('layout.player.title'), icon: 'smart_display', component: Player },
-		{ id: 'filters', label: $_('layout.filter.title'), icon: 'filter_alt', component: Filters },
-		{ id: 'ryd', label: 'Return YT Dislike', icon: 'thumb_down', component: Ryd },
-		{ id: 'sponsorblock', label: 'Sponsorblock', icon: 'block', component: SponsorBlock },
-		{
-			id: 'dearrow',
-			label: $_('layout.deArrow.title'),
-			icon: 'keyboard_double_arrow_down',
-			component: DeArrow
-		},
-		{
-			id: 'about',
-			label: $_('layout.about'),
-			icon: 'info',
-			component: About
-		}
-	]);
+	let tabs: SettingsTab[] = $state(updateAccountTabs(getSettingsTabs()));
 
-	if (isUnrestrictedPlatform()) {
-		tabs.splice(tabs.length - 1, 0, {
-			id: 'engine',
-			label: $_('layout.engine'),
-			icon: 'rocket_launch',
-			component: Engine
-		});
-	}
+	rawMasterKeyStore.subscribe(() => {
+		tabs = updateAccountTabs(tabs);
+	});
 
-	if (Capacitor.getPlatform() === 'web' || Capacitor.getPlatform() === 'electron') {
-		tabs.splice(tabs.length - 1, 0, {
-			id: 'binds',
-			label: $_('layout.binds.title'),
-			icon: 'keyboard',
-			component: Binds
-		});
-	}
-
-	if (!$isAndroidTvStore) {
-		tabs.splice(tabs.length - 1, 0, {
-			id: 'export',
-			label: $_('layout.export.title'),
-			icon: 'file_export',
-			component: ExportImport
-		});
-	}
-
-	rawMasterKeyStore.subscribe((value) => {
-		if (isOwnBackend()?.internalAuth && value) {
-			tabs.splice(tabs.length - 1, 0, {
-				id: 'account',
-				label: $_('layout.materialiousAccount'),
-				icon: 'person',
-				component: InternalAccount
-			});
-			fetch('/api/user/me').then(async (resp) => {
-				if (resp.ok) {
-					const me = await resp.json();
-					if (isAdminUsername(me.username)) {
-						const existingAdmin = tabs.find((tab) => tab.id === 'admin');
-						if (!existingAdmin) {
-							tabs.splice(tabs.length - 1, 0, {
-								id: 'admin',
-								label: $_('layout.admin'),
-								icon: 'admin_panel_settings',
-								component: Admin
-							});
-						}
-					} else {
-						tabs = tabs.filter((tab) => tab.id !== 'admin');
-					}
-				}
-			});
-		} else {
-			tabs = tabs.filter((tab) => {
-				return tab.id !== 'account' && tab.id !== 'admin';
-			});
-		}
+	materialiousBackendStore.subscribe(() => {
+		tabs = updateAccountTabs(tabs);
 	});
 
 	let dialogType = $state('');
@@ -175,7 +81,7 @@
 						data-ui="#tab-menu"
 					>
 						<i>{currentTab.icon}</i>
-						<span>{currentTab.label}</span>
+						<span>{getTabLabel(currentTab, $_)}</span>
 						<menu
 							style="width: 100%;"
 							data-ui="#tab-menu"
@@ -197,7 +103,7 @@
 									}}
 								>
 									<i>{tab.icon}</i>
-									<span>{tab.label}</span>
+									<span>{getTabLabel(tab, $_)}</span>
 								</li>
 							{/each}
 						</menu>
@@ -232,7 +138,7 @@
 							onclick={() => (activeTab = tab.id)}
 						>
 							<i>{tab.icon}</i>
-							<span>{tab.label}</span>
+							<span>{getTabLabel(tab, $_)}</span>
 						</button>
 						<div class="space"></div>
 					{/each}

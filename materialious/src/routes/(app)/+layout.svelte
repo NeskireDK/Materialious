@@ -14,13 +14,12 @@
 	import { getPages } from '$lib/navPages';
 	import {
 		invidiousAuthStore,
-		invidiousInstanceStore,
 		interfaceDefaultPage,
-		isAndroidTvStore,
 		playerLoadingStore,
 		playerState,
 		playerTheatreModeIsActive,
 		playerIsInWindowFullscreen,
+		materialiousBackendStore,
 		rawMasterKeyStore,
 		backendInUseStore,
 		hideSearchStore,
@@ -32,21 +31,38 @@
 	import { onDestroy, onMount } from 'svelte';
 	import Mousetrap from 'mousetrap';
 	import { _ } from '$lib/i18n';
-	import { isMobile, isYTBackend, truncate } from '$lib/misc';
+	import { isMaterialiousAccountActive, isYTBackend } from '$lib/backend';
+	import { isAndroidTv, isMobile, truncate, keyCodeMap } from '$lib/utils';
+	import { getNextFocus } from '@bbc/tv-lrud-spatial';
 	import { goToInvidiousLogin, invidiousLogout, materialiousLogout } from '$lib/auth';
+	import { backendFetch } from '$lib/api/backend/request';
 	import Author from '$lib/components/Author.svelte';
 	import Toast from '$lib/components/Toast.svelte';
 	import { isOwnBackend } from '$lib/shared';
+	import { configBackendCache } from '$lib/stores/backend';
 	import WatchParty from '$lib/components/WatchParty.svelte';
 
 	let { children } = $props();
 
-	const showLogin = !isYTBackend() || isOwnBackend()?.internalAuth;
+	const showLogin = $derived(!isYTBackend() || !!isOwnBackend()?.internalAuth);
+
+	const accountLoggedIn = $derived(
+		(!!$rawMasterKeyStore && (!!isOwnBackend()?.internalAuth || !!$materialiousBackendStore)) ||
+			(!!$invidiousAuthStore && !isOwnBackend()?.internalAuth)
+	);
 
 	let mobileSearchShow = $state(false);
 	let notifications: Notification[] = $state([]);
 	let playerIsPip = $state(false);
 	let showWatchParty = $state(page.url.searchParams.get('room') !== null);
+	let watchPartySupported = $state(isOwnBackend() !== null);
+	materialiousBackendStore.subscribe(() => {
+		watchPartySupported = isOwnBackend() !== null;
+	});
+	configBackendCache.subscribe(() => {
+		watchPartySupported = isOwnBackend() !== null;
+	});
+	let leftNavElement: HTMLElement | undefined = $state();
 
 	let pages = $state(getPages());
 	invidiousAuthStore.subscribe(() => {
@@ -69,63 +85,19 @@
 
 	async function login() {
 		if (isOwnBackend()?.internalAuth) {
-			goto(resolve('/internal/login', {}));
+			goto(resolve('/login/internal', {}));
 			return;
 		}
 
-		if (!$isAndroidTvStore) {
+		if (!isAndroidTv()) {
 			await goToInvidiousLogin();
 		} else {
-			await ui('#tv-login');
-			document.getElementById('username')?.focus();
+			goto(resolve('/login/tv', {}));
 		}
 	}
 
 	async function logout() {
 		await ($rawMasterKeyStore ? materialiousLogout : invidiousLogout)();
-	}
-
-	let loginError: boolean = $state(false);
-	let rawUsername: string = $state('');
-	let rawPassword: string = $state('');
-	async function usernamePasswordLogin(event: Event) {
-		event.preventDefault();
-
-		if (!$isAndroidTvStore) return;
-
-		loginError = false;
-
-		const body = new FormData();
-		body.append('email', rawUsername);
-		body.append('password', rawPassword);
-		body.append('action', 'signin');
-
-		const response = await fetch(`${$invidiousInstanceStore}/login?type=invidious`, {
-			method: 'POST',
-			body: body,
-			headers: {
-				__redirect: 'manual',
-				__custom_return: 'json-headers'
-			}
-		});
-
-		if (response.ok) {
-			const headers = await response.json();
-			if ('set-cookie' in headers) {
-				const sid = (headers['set-cookie'][0].split(';') as string[]).find((cookie) =>
-					cookie.startsWith('SID=')
-				);
-
-				if (sid) {
-					invidiousAuthStore.set({ username: rawUsername, token: sid });
-					await ui('#tv-login');
-					goto(resolve('/', {}), { replaceState: true });
-					return;
-				}
-			}
-		}
-
-		loginError = true;
 	}
 
 	async function loadNotifications() {
@@ -142,13 +114,16 @@
 
 	onMount(async () => {
 		if ($invidiousAuthStore && !isYTBackend()) {
-			loadNotifications().catch(() => {
-				invidiousLogout();
+			loadNotifications().catch((error) => {
+				console.error('Failed to load invidious feed', error);
+				// A rejected token is only invalid on this device. Don't delete the
+				// synchronized cloud copy, which other (or future) sessions rely on.
+				invidiousAuthStore.set(null);
 			});
 		}
 
-		if ($rawMasterKeyStore) {
-			fetch('/api/user/isLoggedIn', { method: 'GET', credentials: 'same-origin' })
+		if (isMaterialiousAccountActive()) {
+			backendFetch('/api/user/isLoggedIn', { method: 'GET' })
 				.then((resp) => {
 					if (!resp.ok) materialiousLogout();
 				})
@@ -156,6 +131,36 @@
 		}
 
 		resetScroll();
+	});
+
+	let playerPlaceholderArea: HTMLDivElement | undefined = $state();
+	let playerActiveArea: HTMLDivElement | undefined = $state();
+
+	$effect(() => {
+		const el = playerPlaceholderArea ?? playerActiveArea;
+		if (!el) return;
+
+		// In native fullscreen the player container leaves the normal flow,
+		// collapsing this wrapper. Use the fullscreen element's height instead
+		// so dependants like double-tap zones keep their correct sizing.
+		const updateHeight = () => {
+			const height = document.fullscreenElement
+				? document.fullscreenElement.getBoundingClientRect().height
+				: el.getBoundingClientRect().height;
+
+			document.documentElement.style.setProperty('--video-player-height', `${height + 10}px`);
+		};
+
+		const observer = new ResizeObserver(updateHeight);
+		observer.observe(el);
+		updateHeight();
+
+		document.addEventListener('fullscreenchange', updateHeight);
+
+		return () => {
+			observer.disconnect();
+			document.removeEventListener('fullscreenchange', updateHeight);
+		};
 	});
 
 	let fullscreenExited = false;
@@ -239,21 +244,57 @@
 		if (tabBoundKeys.length > 0) unbindKeys.push(...tabBoundKeys);
 		Mousetrap.unbind(unbindKeys);
 	});
+
+	function handleLeftNavKeyDown(event: KeyboardEvent) {
+		if (!isAndroidTv()) return;
+		const keyCode = keyCodeMap[event.key];
+		if (!keyCode) return;
+		const target = event.target as HTMLElement;
+		if (!leftNavElement?.contains(target)) return;
+
+		if (keyCode === 38 || keyCode === 40) {
+			const next = getNextFocus(target, keyCode, leftNavElement);
+			if (next) {
+				event.preventDefault();
+				next.focus();
+			}
+			return;
+		}
+
+		if (keyCode === 39) {
+			event.preventDefault();
+			const settingsTab = document.querySelector('.tv-settings .categories [aria-selected="true"]');
+			if (settingsTab instanceof HTMLElement) {
+				settingsTab.focus();
+				return;
+			}
+			const main = document.getElementById('main-content');
+			main?.querySelector<HTMLElement>('[tabindex], a, input, button')?.focus();
+		}
+	}
 </script>
 
 <div>
 	<nav
 		id="left-nav"
 		class="left m l surface-container"
-		class:tv-nav={$isAndroidTvStore}
+		class:tv-nav={isAndroidTv()}
 		class:hide-element={$playerTheatreModeIsActive || $playerIsInWindowFullscreen}
+		bind:this={leftNavElement}
+		onkeydown={handleLeftNavKeyDown}
 	>
-		<header class="small-padding no-margin">
-			<a href={resolve($interfaceDefaultPage, {})} tabindex="-1" data-sveltekit-preload-data="off">
-				<Logo />
-			</a>
-		</header>
-		{#if $isAndroidTvStore}
+		{#if !isAndroidTv()}
+			<header class="small-padding no-margin">
+				<a
+					href={resolve($interfaceDefaultPage, {})}
+					tabindex="-1"
+					data-sveltekit-preload-data="off"
+				>
+					<Logo />
+				</a>
+			</header>
+		{/if}
+		{#if isAndroidTv()}
 			<a href={resolve('/search', {})} class:active={page.url.href.endsWith('/search')}>
 				<i>search</i>
 				<div>{$_('searchPlaceholder')}</div>
@@ -265,14 +306,14 @@
 				<div>{navPage.name}</div>
 			</a>
 		{/each}
-		{#if $isAndroidTvStore}
+		{#if isAndroidTv()}
 			<div class="divider"></div>
-			<a href="#settings" onclick={() => ui('#dialog-settings')}>
+			<a href={resolve('/settings', {})} class:active={page.url.href.endsWith('/settings')}>
 				<i>settings</i>
 				<div>{$_('layout.settings')}</div>
 			</a>
 			{#if showLogin}
-				{#if (!$invidiousAuthStore && !isOwnBackend()?.internalAuth) || (!$rawMasterKeyStore && isOwnBackend()?.internalAuth)}
+				{#if !accountLoggedIn}
 					<a onclick={login} href="#login">
 						<i>login</i>
 						<div>{$_('layout.login')}</div>
@@ -286,11 +327,11 @@
 			{/if}
 		{/if}
 	</nav>
-	{#if !$isAndroidTvStore}
+	{#if !isAndroidTv()}
 		<nav
 			class="top"
 			id="top-content"
-			class:tv-nav={$isAndroidTvStore}
+			class:tv-nav={isAndroidTv()}
 			class:hide-element={$playerIsInWindowFullscreen}
 		>
 			{#if $playerTheatreModeIsActive}
@@ -345,10 +386,13 @@
 					</div>
 				</div>
 			{:else}
-				<!-- Watch parties only work in HTTPS environments -->
-				{#if page.url.protocol === 'https:'}
+				<!-- Watch parties run on the own backend -->
+				{#if watchPartySupported}
 					<button
-						onclick={() => (showWatchParty = !showWatchParty)}
+						onclick={() => {
+							showWatchParty = !showWatchParty;
+							if (showWatchParty) resetScroll();
+						}}
 						class="circle large transparent"
 						class:active={showWatchParty}
 					>
@@ -375,13 +419,13 @@
 					</button>
 				{/if}
 				{#if !isOwnBackend()?.requireAuth || $rawMasterKeyStore}
-    				<button class="circle large transparent" onclick={() => ui('#dialog-settings')}>
-    					<i>settings</i>
-    					<div class="tooltip bottom">{$_('layout.settings')}</div>
-    				</button>
+					<button class="circle large transparent" onclick={() => ui('#dialog-settings')}>
+						<i>settings</i>
+						<div class="tooltip bottom">{$_('layout.settings')}</div>
+					</button>
 				{/if}
 				{#if showLogin}
-					{#if (!$invidiousAuthStore && !isOwnBackend()?.internalAuth) || (!$rawMasterKeyStore && isOwnBackend()?.internalAuth)}
+					{#if !accountLoggedIn}
 						<button onclick={login} class="circle large transparent">
 							<i>login</i>
 							<div class="tooltip bottom">{$_('layout.login')}</div>
@@ -410,7 +454,9 @@
 		{/each}
 	</nav>
 
-	<Settings />
+	{#if !isAndroidTv()}
+		<Settings />
+	{/if}
 
 	<dialog class="right" id="dialog-notifications">
 		<nav>
@@ -434,7 +480,7 @@
 		class="responsive max root"
 		class:full-window-main={$playerIsInWindowFullscreen}
 	>
-		{#if showWatchParty}
+		{#if showWatchParty && watchPartySupported}
 			<WatchParty />
 		{/if}
 
@@ -448,7 +494,7 @@
 					class:l9={!$playerTheatreModeIsActive && !$playerIsInWindowFullscreen && !playerIsPip}
 				>
 					<div class="pip-info">
-						<div class="player">
+						<div class="player" bind:this={playerPlaceholderArea}>
 							<div class="player-placeholder">
 								<progress class="circle large indeterminate"></progress>
 							</div>
@@ -494,7 +540,7 @@
 								</nav>
 							</div>
 						{/if}
-						<div class="player">
+						<div class="player" bind:this={playerActiveArea}>
 							{#key $playerState.data.video.videoId}
 								<Player data={$playerState.data} {playerIsPip} />
 							{/key}
@@ -526,33 +572,6 @@
 	</main>
 </div>
 
-<dialog class="modal" id="tv-login">
-	<h5>{$_('loginRequired')}</h5>
-	<div>{$_('invidiousLogin')}</div>
-
-	<form onsubmit={usernamePasswordLogin}>
-		<div class="field label border" class:invalid={loginError}>
-			<input id="username" bind:value={rawUsername} name="username" type="text" />
-			<label for="username">{$_('username')}</label>
-		</div>
-		<div class="field label border" class:invalid={loginError}>
-			<input bind:value={rawPassword} name="password" type="password" />
-			<label for="password">{$_('password')}</label>
-		</div>
-
-		<nav class="right-align no-space">
-			<button
-				class="transparent link"
-				type="button"
-				onclick={async () => {
-					await ui('#tv-login');
-				}}>{$_('cancel')}</button
-			>
-			<button class="transparent link" type="submit">{$_('login')}</button>
-		</nav>
-	</form>
-</dialog>
-
 <style>
 	.hide-element {
 		display: none;
@@ -560,7 +579,7 @@
 
 	.tv-nav {
 		min-inline-size: 0.5rem;
-		padding: 0;
+		padding: 0.5rem 1.5rem;
 	}
 
 	.pip {

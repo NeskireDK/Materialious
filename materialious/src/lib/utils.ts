@@ -1,19 +1,6 @@
 import he from 'he';
-import { get } from 'svelte/store';
-import { env } from '$env/dynamic/public';
-import { backendInUseStore, interfaceAndroidUseNativeShare, isAndroidTvStore } from './store';
 import { Capacitor } from '@capacitor/core';
-import { Share } from '@capacitor/share';
-import { Clipboard } from '@capacitor/clipboard';
-import { isOwnBackend } from './shared';
-import { addToast } from './components/Toast.svelte';
-import { _ } from './i18n';
-
-export function getPublicEnv(envName: string): string | undefined {
-	const envValue = env[`PUBLIC_${envName}`] ?? import.meta.env[`VITE_${envName}`];
-	if (envValue === '') return;
-	return envValue;
-}
+export { isAndroidTv } from '$lib/platform';
 
 export function isMobile(): boolean {
 	const userAgent = navigator.userAgent;
@@ -41,24 +28,6 @@ export function decodeHtmlCharCodes(str: string): string {
 
 export function unsafeRandomItem(array: any[]): any {
 	return array[Math.floor(Math.random() * array.length)];
-}
-
-export async function shareURL(url: string) {
-	if (
-		Capacitor.getPlatform() === 'android' &&
-		(await Share.canShare()).value &&
-		get(interfaceAndroidUseNativeShare)
-	) {
-		await Share.share({ url: url });
-	} else {
-		await Clipboard.write({ string: url });
-	}
-
-	addToast({
-		data: {
-			text: get(_)('player.share.copiedSuccess')
-		}
-	});
 }
 
 export function ensureNoTrailingSlash(url: any): string {
@@ -109,32 +78,6 @@ export function findElementForTime<T>(
 	}
 
 	return null;
-}
-
-export function isUnrestrictedPlatform(): boolean {
-	return isOwnBackend() !== null || Capacitor.isNativePlatform();
-}
-
-export function isYTBackend(): boolean {
-	return get(backendInUseStore) === 'yt' && isUnrestrictedPlatform();
-}
-
-export function isAndroidTv(): boolean {
-	return get(isAndroidTvStore);
-}
-
-export function downloadStringAsFile(content: string, filename: string) {
-	const blob = new Blob([content]);
-	const url = URL.createObjectURL(blob);
-
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = `${new Date().toDateString().replaceAll(' ', '')}-${filename}`;
-
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-	URL.revokeObjectURL(url);
 }
 
 export const keyCodeMap: Record<string, number> = {

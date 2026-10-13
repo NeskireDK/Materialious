@@ -49,6 +49,7 @@ export {
 	interfaceAndroidUseNativeShare,
 	interfaceAdvancedThemingStore,
 	interfaceBorderRadiusStore,
+	customThemesStore,
 	interfacePreserveTranslation,
 	interfaceMobileBackButtonStore,
 	hideSearchStore
@@ -68,10 +69,11 @@ export {
 } from './filtering';
 export {
 	rawMasterKeyStore,
-	watchHistoryEnabledStore,
-	poTokenCacheStore,
-	isAndroidTvStore
-} from './misc';
+	materialiousBackendStore,
+	authTokenStore,
+	configBackendCache
+} from './backend';
+export { watchHistoryEnabledStore, poTokenCacheStore } from './misc';
 export {
 	sponsorBlockStore,
 	sponsorBlockUrlStore,

@@ -330,8 +330,12 @@ export const persistedStores: PersistedStore<any>[] = [
 	}
 ];
 
-// If using own backend with can support more externalSettings.
-if (isOwnBackend()) {
+// If using own backend or a remote Materialious backend we can sync more externalSettings.
+let backendStoresRegistered = false;
+function registerBackendStores() {
+	if (backendStoresRegistered) return;
+	backendStoresRegistered = true;
+
 	persistedStores.push({
 		name: 'authToken',
 		store: invidiousAuthStore,
@@ -410,5 +414,13 @@ if (isOwnBackend()) {
 		schema: zBoolean
 	});
 }
+
+export function ensureBackendPersistedStores() {
+	if (isOwnBackend()) {
+		registerBackendStores();
+	}
+}
+
+ensureBackendPersistedStores();
 
 export const persistedStoreKeys = persistedStores.map((store) => store.name);

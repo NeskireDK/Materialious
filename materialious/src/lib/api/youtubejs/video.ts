@@ -15,7 +15,7 @@ import { get } from 'svelte/store';
 import type { Types } from 'youtubei.js';
 import { Innertube, Utils, YT, YTNodes, Platform } from 'youtubei.js';
 import { getInnertube } from '.';
-import { isUnrestrictedPlatform } from '$lib/misc';
+import { isUnrestrictedPlatform } from '$lib/backend';
 import { webPoTokenMinter } from '$lib/web/youtube/minter';
 import { associateAvatar } from '$lib/thumbnail';
 
@@ -262,7 +262,8 @@ export async function continueVideoPlayerYTjs(videoId: string): Promise<{
 			clen: '',
 			lmt: '',
 			projectionType: 0,
-			resolution: format.width ? `${format.width}x${format.height}` : undefined
+			resolution: format.width && format.height ? `${format.height}p` : undefined,
+			size: format.width && format.height ? `${format.width}x${format.height}` : undefined
 		});
 	});
 

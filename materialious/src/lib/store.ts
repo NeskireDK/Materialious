@@ -47,6 +47,7 @@ export {
 	interfaceAndroidUseNativeShare,
 	interfaceAdvancedThemingStore,
 	interfaceBorderRadiusStore,
+	customThemesStore,
 	interfacePreserveTranslation,
 	interfaceMobileBackButtonStore,
 	hideSearchStore,
@@ -60,12 +61,13 @@ export {
 	engineMaxConcurrentChannelsStore,
 	engineFallbacksStore,
 	rawMasterKeyStore,
+	materialiousBackendStore,
+	authTokenStore,
 	watchHistoryEnabledStore,
 	poTokenCacheStore,
 	filterContentListStore,
 	filterContentUrlStore,
 	filterContentUrlAutoUpdateStore,
-	isAndroidTvStore,
 	sponsorBlockStore,
 	sponsorBlockUrlStore,
 	sponsorBlockCategoriesStore,
@@ -86,7 +88,7 @@ export {
 	channelCacheStore,
 	personalPlaylistsCacheStore
 } from './stores/index';
-export { isAndroidTv } from './misc';
+export { isAndroidTv } from './utils';
 export type {
 	PlayerState,
 	SleepTimerState,

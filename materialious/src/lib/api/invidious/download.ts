@@ -1,4 +1,4 @@
-import { getPublicEnv } from '$lib/misc';
+import { getPublicEnv } from '$lib/env';
 import type { AdaptiveFormats, VideoPlay } from '$lib/api/model';
 import { sanitizeFilename } from '@materialious/shared';
 import type { SabrFormat } from '@materialious/shared/download';
@@ -103,8 +103,8 @@ function formatHeight(format: AdaptiveFormats): number {
 		const match = format.qualityLabel.match(/(\d+)p/);
 		if (match) return parseInt(match[1], 10);
 	}
-	if (format.resolution) {
-		const height = format.resolution.split('x')[1];
+	if (format.size) {
+		const height = format.size.split('x')[1];
 		if (height) return parseInt(height, 10);
 	}
 	return 0;

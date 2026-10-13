@@ -8,6 +8,7 @@ on:
 
 jobs:
     flathub-create-pr:
+        if: github.event.workflow_run.conclusion == 'success'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout the flathub/us.materialio.Materialious repository
@@ -42,7 +43,7 @@ jobs:
             - name: Generate SHA256 checksum for materialious.metainfo.xml
               id: sha256_metainfo
               run: |
-                  METAINFO_URL="https://raw.githubusercontent.com/Materialious/Materialious/${{ github.sha }}/materialious/electron/materialious.metainfo.xml"
+                  METAINFO_URL="https://raw.githubusercontent.com/Materialious/Materialious/${{ steps.get_release.outputs.version }}/materialious/electron/materialious.metainfo.xml"
                   CHECKSUM=$(curl -L $METAINFO_URL | sha256sum | awk '{ print $1 }')
 
                   echo "metainfo_url=$METAINFO_URL" >> "$GITHUB_OUTPUT"
