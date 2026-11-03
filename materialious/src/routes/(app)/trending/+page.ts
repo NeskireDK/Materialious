@@ -1,5 +1,5 @@
-import { getTrending } from '$lib/api/index';
-import { feedCacheStore } from '$lib/store';
+import { getTrending } from '#lib/api/index';
+import { feedCacheStore } from '#lib/store';
 import { error } from '@sveltejs/kit';
 import { get } from 'svelte/store';
 

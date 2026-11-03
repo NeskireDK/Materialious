@@ -1,10 +1,16 @@
-export { createStorage, ifNotWebDefault } from './storage';
+export {
+	createStorage,
+	hydrateSettings,
+	consumeInitialLoadState,
+	ifNotWebDefault
+} from './storage';
 export {
 	playerAutoPlayStore,
 	playerAlwaysLoopStore,
 	playerProxyVideosStore,
 	playerSavePlaybackPositionStore,
 	playerTheatreModeByDefaultStore,
+	playerFitScreenByDefaultStore,
 	playerDefaultQualityStore,
 	playerAutoplayNextByDefaultStore,
 	playerYouTubeJsFallback,
@@ -39,6 +45,7 @@ export {
 	interfaceForceCase,
 	interfaceAutoExpandComments,
 	interfaceAutoExpandDesc,
+	interfaceHideShorts,
 	interfaceAutoExpandChapters,
 	interfaceAmoledTheme,
 	interfaceDisplayThumbnailAvatars,

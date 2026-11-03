@@ -1,6 +1,6 @@
 <script lang="ts">
-	import PlaylistSection from '$lib/components/layout/PlaylistSection.svelte';
-	import NoResults from '$lib/components/NoResults.svelte';
+	import PlaylistSection from '#lib/components/layout/PlaylistSection.svelte';
+	import NoResults from '#lib/components/NoResults.svelte';
 
 	let { data } = $props();
 </script>

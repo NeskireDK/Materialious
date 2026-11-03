@@ -1,21 +1,21 @@
 <script lang="ts">
-	import type { ParsedDescription, Timestamp } from '$lib/description';
-	import { invidiousInstanceStore, sponsorBlockTimelineStore, keybindStore } from '$lib/store';
+	import type { ParsedDescription, Timestamp } from '#lib/description';
+	import { invidiousInstanceStore, sponsorBlockTimelineStore, keybindStore } from '#lib/store';
 	import type { Segment } from 'sponsorblock-api';
 	import { Slider } from 'melt/builders';
-	import { _ } from '$lib/i18n';
-	import { ImageCache } from '$lib/images';
-	import type { VideoPlay } from '$lib/api/model';
+	import { _ } from '#lib/i18n/index';
+	import { ImageCache } from '#lib/images';
+	import type { VideoPlay } from '#lib/api/model';
 	import {
 		generateThumbnailWebVTT,
 		drawTimelineThumbnail,
 		storyboardThumbnails,
 		type TimelineThumbnail
-	} from '$lib/player/thumbnails';
+	} from '#lib/player/thumbnails';
 	import { onDestroy, onMount } from 'svelte';
-	import { createArrowSeek } from '$lib/player/arrowSeek';
-	import { videoLength } from '$lib/numbers';
-	import { isAndroidTv, truncate } from '$lib/utils';
+	import { createArrowSeek } from '#lib/player/arrowSeek';
+	import { videoLength } from '#lib/numbers';
+	import { isAndroidTv, truncate } from '#lib/utils';
 	import { mergeAttrs } from 'melt';
 	import Mousetrap from 'mousetrap';
 
@@ -196,6 +196,7 @@
 
 		const binds = $keybindStore;
 		Mousetrap.unbind([binds.seekBack, binds.seekForward]);
+		Mousetrap.unbind([binds.seekBack, binds.seekForward], 'keyup');
 	});
 
 	const markerGapSize = 0.1;

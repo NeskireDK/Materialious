@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { getComments } from '$lib/api/index';
-	import type { Comments, PlaylistPage } from '$lib/api/model';
-	import Thumbnail from '$lib/components/thumbnail/VideoThumbnail.svelte';
-	import Transcript from '$lib/components/watch/Transcript.svelte';
-	import { getBestThumbnail } from '$lib/images';
-	import { letterCase } from '$lib/letterCasing';
-	import { numberWithCommas } from '$lib/numbers';
+	import { getComments } from '#lib/api/index';
+	import type { Comments, PlaylistPage } from '#lib/api/model';
+	import Thumbnail from '#lib/components/thumbnail/VideoThumbnail.svelte';
+	import Transcript from '#lib/components/watch/Transcript.svelte';
+	import { getBestThumbnail } from '#lib/images';
+	import { letterCase } from '#lib/letterCasing';
+	import { numberWithCommas } from '#lib/numbers';
 	import {
 		interfaceAutoExpandChapters,
 		interfaceAutoExpandComments,
@@ -16,32 +16,34 @@
 		playerPlaylistHistory,
 		playerState,
 		playerTheatreModeByDefaultStore,
+		playerFitScreenByDefaultStore,
 		playerTheatreModeIsActive,
 		playerIsInWindowFullscreen,
 		playlistCacheStore,
 		type PlayerState,
 		filterContentListStore,
 		sleepTimerStore
-	} from '$lib/store';
+	} from '#lib/store';
 	import ui from 'beercss';
-	import { onDestroy, tick } from 'svelte';
-	import { _ } from '$lib/i18n';
+	import { onDestroy, tick, untrack } from 'svelte';
+	import { Capacitor } from '@capacitor/core';
+	import { _ } from '#lib/i18n/index';
 	import { get } from 'svelte/store';
-	import Author from '$lib/components/Author.svelte';
-	import Description from '$lib/components/watch/Description.svelte';
-	import LikesDislikes from '$lib/components/watch/LikesDislikes.svelte';
-	import Comment from '$lib/components/watch/Comment.svelte';
-	import { expandSummery } from '$lib/utils';
-	import { humanizeSeconds, relativeTimestamp } from '$lib/time';
-	import { addToast } from '$lib/components/Toast.svelte';
-	import { getWatchPage } from '$lib/watch';
+	import Author from '#lib/components/Author.svelte';
+	import Description from '#lib/components/watch/Description.svelte';
+	import LikesDislikes from '#lib/components/watch/LikesDislikes.svelte';
+	import Comment from '#lib/components/watch/Comment.svelte';
+	import { expandSummery } from '#lib/utils';
+	import { humanizeSeconds, relativeTimestamp } from '#lib/time';
+	import { addToast } from '#lib/components/Toast.svelte';
+	import { getWatchPage } from '#lib/watch';
 	import { page } from '$app/state';
-	import Share from '$lib/components/Share.svelte';
-	import Playlist from '$lib/components/watch/Playlist.svelte';
-	import PlaylistManager from '$lib/components/PlaylistManager.svelte';
-	import { isItemFiltered } from '$lib/filtering/index';
-	import PageLoading from '$lib/components/PageLoading.svelte';
-	import Download from '$lib/components/watch/Download.svelte';
+	import Share from '#lib/components/Share.svelte';
+	import Playlist from '#lib/components/watch/Playlist.svelte';
+	import PlaylistManager from '#lib/components/PlaylistManager.svelte';
+	import { isItemFiltered } from '#lib/filtering/index';
+	import PageLoading from '#lib/components/PageLoading.svelte';
+	import Download from '#lib/components/watch/Download.svelte';
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let { data = $bindable() }: { data: any } = $props();
@@ -54,6 +56,20 @@
 	let returnYTDislikes: Promise<any> | null = $state(null);
 
 	playerTheatreModeIsActive.set(get(playerTheatreModeByDefaultStore));
+
+	const videoId = $derived(data.video?.videoId);
+	$effect(() => {
+		if (!videoId || Capacitor.getPlatform() === 'android') {
+			return;
+		}
+
+		// Apply defaults once per video, without reacting to manual mode changes.
+		untrack(() => {
+			if (get(playerFitScreenByDefaultStore)) {
+				playerIsInWindowFullscreen.set(true);
+			}
+		});
+	});
 
 	let pauseTimerSeconds: number = $state(0);
 	let pauseTimerRemaining: number = $state(0);
@@ -135,62 +151,94 @@
 		}
 	});
 
-	playerStream?.then(async (playerResult: any) => {
-		if (!data.video) {
-			try {
-				await pageStream;
-			} catch {
-				// Page failed to load, there is nothing to play.
+	playerStream
+		?.then(async (playerResult: any) => {
+			if (!data.video) {
+				try {
+					await pageStream;
+				} catch {
+					// Page failed to load, there is nothing to play.
+				}
 			}
-		}
 
-		if (data.video && playerResult.playerData) {
-			data.video.dashUrl = playerResult.playerData.dashUrl ?? data.video.dashUrl;
-			data.video.adaptiveFormats = playerResult.playerData.adaptiveFormats;
-			data.video.captions = playerResult.playerData.captions;
-			data.video.hlsUrl = playerResult.playerData.hlsUrl ?? data.video.hlsUrl;
-			data.video.ytjs = playerResult.playerData.ytjs;
-		}
+			if (data.video && playerResult.playerData) {
+				data.video.dashUrl = playerResult.playerData.dashUrl ?? data.video.dashUrl;
+				data.video.adaptiveFormats = playerResult.playerData.adaptiveFormats;
+				data.video.captions = playerResult.playerData.captions;
+				data.video.hlsUrl = playerResult.playerData.hlsUrl ?? data.video.hlsUrl;
+				data.video.ytjs = playerResult.playerData.ytjs;
+			}
 
-		if (playerResult.personalPlaylists) {
-			playerResult.personalPlaylists.then((streamPlaylists: PlaylistPage[]) => {
-				personalPlaylistsCacheStore.set(streamPlaylists);
-			});
-		}
+			if (playerResult.personalPlaylists) {
+				playerResult.personalPlaylists
+					.then((streamPlaylists: PlaylistPage[]) => {
+						personalPlaylistsCacheStore.set(streamPlaylists);
+					})
+					.catch(() => {
+						// Personal playlists are not required to play the video.
+					});
+			}
 
-		returnYTDislikes = playerResult.returnYTDislikes;
-		playerReady = true;
+			returnYTDislikes = playerResult.returnYTDislikes;
+			playerReady = true;
 
-		if (
-			data.video &&
-			!hasPremiere() &&
-			!data.video.premium &&
-			(!$playerState || $playerState.data.video.videoId !== data.video.videoId)
-		) {
-			playerLoadingStore.set(false);
-			playerState.set({
-				data: data
-			});
-		} else {
-			playerLoadingStore.set(false);
-		}
-
-		if (data.video) {
-			if ($playerState?.playerElement) {
-				load($playerState);
+			if (
+				data.video &&
+				!hasPremiere() &&
+				!data.video.premium &&
+				(!$playerState || $playerState.data.video.videoId !== data.video.videoId)
+			) {
+				playerLoadingStore.set(false);
+				playerState.set({
+					data: data
+				});
 			} else {
-				let loadedPlayer = false;
-				playerState.subscribe(async (updatedPlayerState) => {
-					if (!updatedPlayerState?.playerElement || loadedPlayer) {
-						return;
-					}
-					loadedPlayer = true;
+				playerLoadingStore.set(false);
+			}
 
-					await load(updatedPlayerState);
+			if (data.video) {
+				if ($playerState?.playerElement) {
+					load($playerState);
+				} else {
+					let loadedPlayer = false;
+					playerState.subscribe(async (updatedPlayerState) => {
+						if (!updatedPlayerState?.playerElement || loadedPlayer) {
+							return;
+						}
+						loadedPlayer = true;
+
+						await load(updatedPlayerState);
+					});
+				}
+			}
+		})
+		.catch(async (error: unknown) => {
+			// A failed player-data request must not take down the page. Fall back to
+			// the page data so the player can surface the playback failure itself.
+			console.error('Failed to load player data:', error);
+
+			if (!data.video) {
+				try {
+					await pageStream;
+				} catch {
+					// Page failed to load, there is nothing to play.
+				}
+			}
+
+			playerLoadingStore.set(false);
+			playerReady = true;
+
+			if (
+				data.video &&
+				!hasPremiere() &&
+				!data.video.premium &&
+				(!$playerState || $playerState.data.video.videoId !== data.video.videoId)
+			) {
+				playerState.set({
+					data: data
 				});
 			}
-		}
-	});
+		});
 
 	$effect(() => {
 		if ($interfaceAutoExpandComments && comments) {
@@ -387,7 +435,7 @@
 							shares={[
 								{
 									type: 'materialious',
-									path: resolve('/watch/[videoId]', { videoId: data.video.videoId }),
+									path: resolve('/(app)/watch/[slug]', { slug: data.video.videoId }),
 									param: {
 										key: 'time',
 										value: () => Math.round(playerCurrentTime)
@@ -421,7 +469,9 @@
 							iconOnly={true}
 							style="margin: 0;"
 						/>
-						<Download video={data.video} />
+						{#if !data.video.liveNow}
+							<Download video={data.video} />
+						{/if}
 						<PlaylistManager mode="toggle" videoId={data.video.videoId} />
 					</div>
 				</div>
@@ -475,9 +525,7 @@
 											shares={[
 												{
 													type: 'materialious',
-													path: resolve(`/watch/[videoId]?time=${Math.round(timestamp.time)}`, {
-														videoId: data.video.videoId
-													})
+													path: `${resolve('/(app)/watch/[slug]', { slug: data.video.videoId })}?time=${Math.round(timestamp.time)}`
 												},
 												{
 													type: 'invidious',

@@ -1,20 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { getBestThumbnail } from '$lib/images';
-	import { videoLength } from '$lib/numbers';
-	import { generateChapterWebVTT, type ParsedDescription } from '$lib/description';
+	import { getBestThumbnail } from '#lib/images';
+	import { videoLength } from '#lib/numbers';
+	import { generateChapterWebVTT, type ParsedDescription } from '#lib/description';
 	import { Capacitor, SystemBars, SystemBarsStyle, SystemBarType } from '@capacitor/core';
-	import { error } from '@sveltejs/kit';
 	import Mousetrap from 'mousetrap';
 	import { CapacitorMusicControls } from 'capacitor-music-controls-plugin';
 	import shaka from 'shaka-player/dist/shaka-player.ui';
 	import { KeepAwake } from '@capgo/capacitor-keep-awake';
 	import { SponsorBlock, type Category, type Segment } from 'sponsorblock-api';
 	import { onDestroy, onMount } from 'svelte';
-	import { _ } from '$lib/i18n';
+	import { _ } from '#lib/i18n/index';
 	import { get } from 'svelte/store';
 	import { Slider } from 'melt/builders';
-	import type { VideoPlay } from '$lib/api/model';
+	import type { VideoPlay } from '#lib/api/model';
 	import {
 		playerAlwaysLoopStore,
 		playerAndroidLockOrientation,
@@ -33,25 +32,25 @@
 		sponsorBlockStore,
 		sponsorBlockUrlStore,
 		keybindStore
-	} from '$lib/store';
-	import { setStatusBarColor } from '$lib/theme/index';
-	import { getVideoYTjs } from '$lib/api/youtubejs/video';
+	} from '#lib/store';
+	import { setStatusBarColor } from '#lib/theme/index';
+	import { getVideoYTjs } from '#lib/api/youtubejs/video';
 	import {
 		goToNextVideo,
 		goToPreviousVideo,
 		restoreDefaultLanguage,
 		restoreQualityPreference,
 		toggleSubtitles
-	} from '$lib/player/index';
-	import { manifestDomainInclusion } from '$lib/player/manifest';
-	import { injectSabr } from '$lib/player/sabr';
+	} from '#lib/player/index';
+	import { manifestDomainInclusion } from '#lib/player/manifest';
+	import { injectSabr, refreshSabrSession } from '#lib/player/sabr/index';
 	import type { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 	import { fade } from 'svelte/transition';
-	import { addToast } from '$lib/components/Toast.svelte';
-	import { getPublicEnv } from '$lib/env';
-	import { isAndroidTv, isMobile } from '$lib/utils';
-	import { isUnrestrictedPlatform, isYTBackend } from '$lib/backend';
-	import { isOwnBackend } from '$lib/shared';
+	import { addToast } from '#lib/components/Toast.svelte';
+	import { getPublicEnv } from '#lib/env';
+	import { isAndroidTv, isMobile } from '#lib/utils';
+	import { isUnrestrictedPlatform, isYTBackend } from '#lib/backend';
+	import { isOwnBackend } from '#lib/shared/index';
 	import Settings, { setActiveAudioTrack, setActiveVideoTrack } from './settings/Settings.svelte';
 	import CaptionSettings from './settings/CaptionSettings.svelte';
 	import Airplay from './settings/Airplay.svelte';
@@ -62,7 +61,7 @@
 	import { Network, type ConnectionStatus } from '@capacitor/network';
 	import { ScreenOrientation, type ScreenOrientationResult } from '@capacitor/screen-orientation';
 	import ClosedCaptions from './ClosedCaptions.svelte';
-	import { getVideoWatchHistory, updateWatchHistory } from '$lib/api';
+	import { getVideo, getVideoWatchHistory, updateWatchHistory } from '#lib/api/index';
 
 	interface Props {
 		data: { video: VideoPlay; content: ParsedDescription; playlistId: string | null };
@@ -107,10 +106,38 @@
 		}
 	}
 
-	let showVideoRetry = $state(false);
+	type PlaybackErrorSource = 'sabr' | 'invidious' | 'youtubejs' | 'unknown';
+
+	interface PlaybackError {
+		source: PlaybackErrorSource;
+		detail?: string;
+	}
+
+	let playbackError = $state<PlaybackError | null>(null);
+	let isRetryingPlayback = $state(false);
 
 	let player: shaka.Player;
-	let sabrAdapter: SabrStreamingAdapter | null;
+	let sabrAdapter: SabrStreamingAdapter | null = null;
+	let playerLoadedListenerAdded = false;
+	let sponsorSkipListenerAdded = false;
+
+	const STALL_CHECK_INTERVAL_MS = 3_000;
+	const STALL_TIMEOUT_MS = 12_000;
+	const MAX_STALL_RECOVERY_ATTEMPTS = 3;
+	const MAX_STREAMING_FAILURE_RETRIES = 5;
+
+	let stallWatchdogInterval: ReturnType<typeof setInterval> | undefined;
+	let stallWatchdogLastTime = 0;
+	let stallWatchdogLastProgress = Date.now();
+	let stallRecoveryAttempts = 0;
+	let stallRecoveryInProgress = false;
+	let lastStallRecoveryAt = 0;
+
+	let streamingFailureRetries = 0;
+	let streamingFailureRetryTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastStreamingFailureAt = 0;
+	let streamingFailureExhausted = false;
+	let stallRecoveryExhausted = false;
 
 	let androidInitialNetworkStatus: ConnectionStatus | undefined;
 	let androidOriginalOrigination: ScreenOrientationResult | undefined;
@@ -148,6 +175,31 @@
 		playerVolume = playerElement.volume;
 	}
 
+	function adjustVolume(change: number) {
+		if (!playerElement) {
+			return;
+		}
+
+		const volume = Math.round(playerElement.volume * 100) + change;
+		playerElement.volume = Math.max(0, Math.min(100, volume)) / 100;
+		showPlayerUI();
+		return false;
+	}
+
+	$effect(() => {
+		const volumeUp = $keybindStore.volumeUp;
+		const volumeDown = $keybindStore.volumeDown;
+		// Android TV reserves arrow keys for remote-control navigation.
+		if (isAndroidTv()) {
+			return;
+		}
+
+		Mousetrap.bind(volumeUp, () => adjustVolume(5));
+		Mousetrap.bind(volumeDown, () => adjustVolume(-5));
+
+		return () => Mousetrap.unbind([volumeUp, volumeDown]);
+	});
+
 	function skipSegment(segment: Segment) {
 		if (!playerElement) return;
 
@@ -184,6 +236,9 @@
 		}
 
 		if (segments.length === 0) return;
+
+		if (sponsorSkipListenerAdded) return;
+		sponsorSkipListenerAdded = true;
 
 		playerElement?.addEventListener('timeupdate', () => {
 			segments.forEach((segment) => {
@@ -247,10 +302,238 @@
 		playerIsInWindowFullscreen.update((v) => !v);
 	}
 
-	async function loadVideo() {
-		showVideoRetry = false;
+	function isRetryableStreamingError(error: shaka.util.Error): boolean {
+		if (!error) return false;
 
-		sabrAdapter = await injectSabr(data.video, player);
+		// Aborted operations are intentional (seek/teardown) and must not
+		// trigger recovery.
+		if (error.code === shaka.util.Error.Code.OPERATION_ABORTED) return false;
+
+		if (error.severity === shaka.util.Error.Severity.RECOVERABLE) return true;
+
+		return (
+			error.category === shaka.util.Error.Category.NETWORK ||
+			error.code === shaka.util.Error.Code.SEGMENT_MISSING ||
+			error.code === shaka.util.Error.Code.MEDIA_SOURCE_OPERATION_FAILED
+		);
+	}
+
+	function currentPlaybackErrorSource(): PlaybackErrorSource {
+		if (sabrAdapter) return 'sabr';
+		if (data.video.fallbackPatch === 'youtubejs') return 'youtubejs';
+		return 'invidious';
+	}
+
+	function playbackErrorMessage(source: PlaybackErrorSource): string {
+		switch (source) {
+			case 'sabr':
+				return $_('player.playbackErrorSabr');
+			case 'invidious':
+				return $_('player.playbackErrorInvidious');
+			case 'youtubejs':
+				return $_('player.playbackErrorYoutubeJs');
+			default:
+				return $_('player.playbackErrorUnknown');
+		}
+	}
+
+	function errorDetail(error: unknown): string | undefined {
+		if (error === undefined || error === null) return undefined;
+
+		if (typeof error === 'string') return error;
+
+		if (error instanceof Error) {
+			return error.message || error.name;
+		}
+
+		if (typeof error === 'object') {
+			const shakaError = error as { category?: unknown; code?: unknown; message?: unknown };
+			const message = typeof shakaError.message === 'string' ? shakaError.message : undefined;
+			const code = [shakaError.category, shakaError.code]
+				.filter((value) => value !== undefined && value !== null)
+				.join(' / ');
+
+			if (message || code) {
+				return [code, message].filter(Boolean).join(' - ');
+			}
+
+			try {
+				return JSON.stringify(error);
+			} catch {
+				// Continue with String() below
+			}
+		}
+
+		return String(error);
+	}
+
+	/**
+	 * Surfaces a playback failure on the player itself so the user always sees
+	 * why the video will not play and can retry instead of the whole app
+	 * crashing on an unhandled rejection.
+	 */
+	function reportPlaybackError(source: PlaybackErrorSource, error: unknown) {
+		console.error(`[Player] ${source} playback failed:`, error);
+
+		// Stop all automatic recovery loops; the user is now in control.
+		streamingFailureExhausted = true;
+		stallRecoveryExhausted = true;
+		isRetryingPlayback = false;
+
+		if (streamingFailureRetryTimer) {
+			clearTimeout(streamingFailureRetryTimer);
+			streamingFailureRetryTimer = undefined;
+		}
+
+		stopStallWatchdog();
+
+		playbackError = {
+			source,
+			detail: errorDetail(error)
+		};
+	}
+
+	function scheduleStreamingRetry(error: shaka.util.Error) {
+		console.error('Streaming failure:', error);
+
+		if (!isRetryableStreamingError(error)) {
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+			return;
+		}
+
+		// Once we have handed control back to the user, do not stack up more
+		// retries/toasts until the stream is reloaded.
+		if (streamingFailureExhausted) return;
+
+		const now = Date.now();
+		if (streamingFailureRetries > 0 && now - lastStreamingFailureAt > 30_000) {
+			streamingFailureRetries = 0;
+		}
+		lastStreamingFailureAt = now;
+
+		// A retry is already scheduled; let it run instead of stacking them up.
+		if (streamingFailureRetryTimer) return;
+
+		if (streamingFailureRetries >= MAX_STREAMING_FAILURE_RETRIES) {
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+			return;
+		}
+
+		streamingFailureRetries++;
+		const delay = Math.min(1000 * 2 ** (streamingFailureRetries - 1), 10_000);
+
+		streamingFailureRetryTimer = setTimeout(() => {
+			streamingFailureRetryTimer = undefined;
+			if (!player) return;
+
+			try {
+				if (!player.retryStreaming(0)) {
+					reportPlaybackError(currentPlaybackErrorSource(), error);
+				}
+			} catch (retryError) {
+				reportPlaybackError(currentPlaybackErrorSource(), retryError);
+			}
+		}, delay);
+	}
+
+	function startStallWatchdog() {
+		if (stallWatchdogInterval) clearInterval(stallWatchdogInterval);
+
+		stallWatchdogLastTime = playerElement?.currentTime ?? 0;
+		stallWatchdogLastProgress = Date.now();
+		stallWatchdogInterval = setInterval(checkForStall, STALL_CHECK_INTERVAL_MS);
+	}
+
+	function stopStallWatchdog() {
+		if (stallWatchdogInterval) clearInterval(stallWatchdogInterval);
+		stallWatchdogInterval = undefined;
+	}
+
+	function checkForStall() {
+		if (!player || !playerElement || stallRecoveryInProgress || stallRecoveryExhausted) return;
+
+		if (playerElement.paused || playerElement.seeking || playerElement.ended) {
+			stallWatchdogLastProgress = Date.now();
+			return;
+		}
+
+		if (document.visibilityState !== 'visible' || navigator.onLine === false) {
+			stallWatchdogLastProgress = Date.now();
+			return;
+		}
+
+		const now = Date.now();
+		const currentTime = playerElement.currentTime;
+
+		if (Math.abs(currentTime - stallWatchdogLastTime) > 0.05) {
+			stallWatchdogLastTime = currentTime;
+			stallWatchdogLastProgress = now;
+
+			if (now - lastStallRecoveryAt > 10_000) {
+				stallRecoveryAttempts = 0;
+			}
+			return;
+		}
+
+		if (now - stallWatchdogLastProgress < STALL_TIMEOUT_MS) return;
+
+		void recoverFromStall();
+	}
+
+	async function recoverFromStall() {
+		if (!player || !playerElement) return;
+
+		stallRecoveryInProgress = true;
+		stallRecoveryAttempts++;
+		lastStallRecoveryAt = Date.now();
+		stallWatchdogLastProgress = Date.now();
+
+		console.warn(`[Player] Playback stalled, recovery attempt ${stallRecoveryAttempts}`);
+
+		try {
+			if (stallRecoveryAttempts === 1) {
+				// Refresh attestation/PoToken first, then let Shaka refetch.
+				await refreshSabrSession(data.video);
+				player.retryStreaming(0);
+			} else if (stallRecoveryAttempts < MAX_STALL_RECOVERY_ATTEMPTS) {
+				// A plain retry did not help; rebuild the SABR session.
+				await refreshSabrSession(data.video);
+				await reloadVideo(playerElement.currentTime);
+			} else {
+				reportPlaybackError(currentPlaybackErrorSource(), new Error('Playback stalled'));
+			}
+		} catch (error) {
+			console.error('[Player] Stall recovery failed:', error);
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+		} finally {
+			stallRecoveryInProgress = false;
+			stallWatchdogLastProgress = Date.now();
+			stallWatchdogLastTime = playerElement?.currentTime ?? 0;
+		}
+	}
+
+	async function loadVideo() {
+		// A new stream is being loaded; discard any pending retry from the
+		// previous one and give streaming failures a fresh budget.
+		if (streamingFailureRetryTimer) {
+			clearTimeout(streamingFailureRetryTimer);
+			streamingFailureRetryTimer = undefined;
+		}
+		streamingFailureRetries = 0;
+		lastStreamingFailureAt = 0;
+		streamingFailureExhausted = false;
+
+		if (sabrAdapter) {
+			sabrAdapter.dispose();
+			sabrAdapter = null;
+		}
+
+		try {
+			sabrAdapter = await injectSabr(data.video, player);
+		} catch (error) {
+			reportPlaybackError('sabr', error);
+			return;
+		}
 
 		if (data.video.fallbackPatch === 'youtubejs' && !isYTBackend()) {
 			addToast({ data: { text: $_('player.youtubeJsFallBack') } });
@@ -258,84 +541,165 @@
 
 		setupSponsorSkip();
 
-		player.addEventListener('loaded', () => {
-			restoreQualityPreference(player);
-			restoreDefaultLanguage(player);
+		if (!playerLoadedListenerAdded) {
+			playerLoadedListenerAdded = true;
 
-			setActiveAudioTrack(player);
-			setActiveVideoTrack(player);
+			player.addEventListener('loaded', () => {
+				restoreQualityPreference(player);
+				restoreDefaultLanguage(player);
 
-			if ($playerAutoPlayStore) playerElement?.play();
-		});
+				setActiveAudioTrack(player);
+				setActiveVideoTrack(player);
 
-		if (!data.video.liveNow) {
-			if (watchProgressInterval) {
-				clearInterval(watchProgressInterval);
-			}
-			// Auto save watch progress every minute.
-			watchProgressInterval = setInterval(() => savePlayerbackHistory(), 60000);
+				if ($playerAutoPlayStore) playerElement?.play();
+			});
+		}
 
-			let dashUrl: string;
-
-			// Due to CORs issues with redirects, hosted instances of Materialious
-			// dirctly provide the companion instance
-			// while clients can just use the reirect provided by Invidious' API
-			if (getPublicEnv('DEFAULT_COMPANION_INSTANCE')) {
-				dashUrl = `${getPublicEnv('DEFAULT_COMPANION_INSTANCE')}/api/manifest/dash/id/${data.video.videoId}`;
-			} else {
-				if (!data.video.dashUrl) {
-					error(500, 'No dash manifest found');
+		try {
+			if (!data.video.liveNow) {
+				if (watchProgressInterval) {
+					clearInterval(watchProgressInterval);
 				}
-				dashUrl = data.video.dashUrl;
-			}
+				// Auto save watch progress every minute.
+				watchProgressInterval = setInterval(() => savePlayerbackHistory(), 60000);
 
-			if (!data.video.fallbackPatch && (!isUnrestrictedPlatform() || $playerProxyVideosStore)) {
-				dashUrl += '?local=true';
-			}
+				let dashUrl: string;
 
-			if (
-				(Capacitor.getPlatform() === 'android' ||
-					(isOwnBackend() && Capacitor.getPlatform() === 'web')) &&
-				$playerProxyVideosStore &&
-				!data.video.fallbackPatch
-			) {
-				const manifest = await manifestDomainInclusion(dashUrl);
-				await player.load(manifest, await getPlaybackHistory());
+				// Due to CORs issues with redirects, hosted instances of Materialious
+				// dirctly provide the companion instance
+				// while clients can just use the reirect provided by Invidious' API
+				if (getPublicEnv('DEFAULT_COMPANION_INSTANCE')) {
+					dashUrl = `${getPublicEnv('DEFAULT_COMPANION_INSTANCE')}/api/manifest/dash/id/${data.video.videoId}`;
+				} else {
+					if (!data.video.dashUrl) {
+						reportPlaybackError(
+							currentPlaybackErrorSource(),
+							new Error('No DASH manifest was provided for this video')
+						);
+						return;
+					}
+					dashUrl = data.video.dashUrl;
+				}
+
+				if (!data.video.fallbackPatch && (!isUnrestrictedPlatform() || $playerProxyVideosStore)) {
+					dashUrl += '?local=true';
+				}
+
+				if (
+					(Capacitor.getPlatform() === 'android' ||
+						(isOwnBackend() && Capacitor.getPlatform() === 'web')) &&
+					$playerProxyVideosStore &&
+					!data.video.fallbackPatch
+				) {
+					const manifest = await manifestDomainInclusion(dashUrl);
+					await player.load(manifest, await getPlaybackHistory());
+				} else {
+					await player.load(dashUrl, await getPlaybackHistory());
+				}
+
+				if (data.content.timestamps) {
+					try {
+						player.addChaptersTrack(
+							`data:text/vtt;base64,${btoa(generateChapterWebVTT(data.content.timestamps, playerMaxKnownTime))}`,
+							get(playerDefaultLanguage)
+						);
+					} catch {
+						// Continue regardless
+					}
+				}
 			} else {
-				await player.load(dashUrl, await getPlaybackHistory());
-			}
-
-			if (data.content.timestamps) {
-				try {
-					player.addChaptersTrack(
-						`data:text/vtt;base64,${btoa(generateChapterWebVTT(data.content.timestamps, playerMaxKnownTime))}`,
-						get(playerDefaultLanguage)
-					);
-				} catch {
-					// Continue regardless
+				if (data.video.fallbackPatch === 'youtubejs') {
+					if (!data.video.dashUrl) {
+						reportPlaybackError(
+							'youtubejs',
+							new Error('No DASH manifest was provided for this video')
+						);
+						return;
+					}
+					await player.load(data.video.dashUrl);
+				} else {
+					if (!data.video.hlsUrl) {
+						reportPlaybackError(
+							'invidious',
+							new Error('No HLS manifest was provided for this live video')
+						);
+						return;
+					}
+					await player.load(data.video.hlsUrl + '?local=true');
 				}
 			}
-		} else {
-			if (data.video.fallbackPatch === 'youtubejs') {
-				if (!data.video.dashUrl) {
-					error(500, 'No dash manifest found');
-					return;
-				}
-				await player.load(data.video.dashUrl);
-			} else {
-				await player.load(data.video.hlsUrl + '?local=true');
-			}
+		} catch (error) {
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+			return;
 		}
 
 		if ($playerDefaultPlaybackSpeed && playerElement) {
 			playerElement.playbackRate = $playerDefaultPlaybackSpeed;
 		}
+
+		// Playback started successfully; clear any previous error and resume
+		// normal recovery behaviour.
+		playbackError = null;
+		stallRecoveryExhausted = false;
+		streamingFailureExhausted = false;
+		startStallWatchdog();
 	}
 
-	async function reloadVideo() {
-		showVideoRetry = false;
-		data.video = await getVideoYTjs(data.video.videoId);
+	async function reloadVideo(resumeTime?: number, forceYoutubeJs = false) {
+		// A reload triggered by the user (or the initial fallback) should also
+		// reset the stall recovery budget; an internal stall recovery must keep
+		// it so that we can escalate instead of looping forever.
+		if (resumeTime === undefined) {
+			stallRecoveryAttempts = 0;
+			stallRecoveryExhausted = false;
+		}
+
+		const targetTime = resumeTime ?? playerElement?.currentTime ?? 0;
+		const wasPlaying = playerElement ? !playerElement.paused : false;
+
+		try {
+			if (forceYoutubeJs || data.video.fallbackPatch === 'youtubejs' || !!data.video.ytjs) {
+				data.video = await getVideoYTjs(data.video.videoId);
+			} else {
+				data.video = await getVideo(data.video.videoId);
+			}
+		} catch (error) {
+			reportPlaybackError(forceYoutubeJs ? 'youtubejs' : 'invidious', error);
+			return;
+		}
+
 		await loadVideo();
+
+		if (playbackError) return;
+
+		if (targetTime > 0 && playerElement) {
+			playerElement.currentTime = targetTime;
+		}
+
+		if (wasPlaying) {
+			try {
+				await playerElement?.play();
+			} catch {
+				// Autoplay can be rejected by the browser; playback state is
+				// still valid so there is nothing else to do here.
+			}
+		}
+	}
+
+	async function retryPlayback(forceYoutubeJs = false) {
+		if (isRetryingPlayback) return;
+
+		isRetryingPlayback = true;
+		streamingFailureExhausted = false;
+		stallRecoveryExhausted = false;
+
+		try {
+			await reloadVideo(undefined, forceYoutubeJs);
+		} catch (error) {
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+		} finally {
+			isRetryingPlayback = false;
+		}
 	}
 
 	function toggleVideoPlaybackStatus() {
@@ -429,19 +793,22 @@
 			},
 			streaming: {
 				failureCallback: (error: shaka.util.Error) => {
-					console.error('Streaming failure:', error);
-					player.retryStreaming(5);
+					scheduleStreamingRetry(error);
 				},
-				bufferingGoal: 120,
-				rebufferingGoal: 2,
+				bufferingGoal: 60,
+				rebufferingGoal: 5,
 				bufferBehind: 300,
-				// Jump over small gaps in the buffer instead of stalling
-				// until the user manually seeks.
-				gapDetectionThreshold: 1,
+				// Only jump over gaps Shaka considers small. A larger threshold
+				// makes playback visibly skip ahead by up to that many seconds.
+				gapDetectionThreshold: 0.5,
+				// Do not let Shaka's stall detector seek/nudge the media; the
+				// watchdog below handles genuine stalls based on currentTime.
+				stallEnabled: false,
+				stallSkip: 0,
 				retryParameters: {
-					maxAttempts: 4,
+					maxAttempts: 8,
 					fuzzFactor: 0.5,
-					timeout: 15 * 1000
+					timeout: 30 * 1000
 				}
 			}
 		});
@@ -460,6 +827,15 @@
 		player?.addEventListener('error', (event) => {
 			const error = (event as CustomEvent).detail as shaka.util.Error;
 			console.error('Player error:', error);
+
+			if (error?.code === shaka.util.Error.Code.OPERATION_ABORTED) return;
+
+			// Critical errors are the ones that stop playback entirely. Recoverable
+			// failures are retried by scheduleStreamingRetry and only surface once
+			// that recovery budget is exhausted.
+			if (error?.severity === shaka.util.Error.Severity.CRITICAL) {
+				reportPlaybackError(currentPlaybackErrorSource(), error);
+			}
 		});
 
 		playerElement?.addEventListener('volumechange', saveVolumePreference);
@@ -720,19 +1096,20 @@
 		try {
 			await loadVideo();
 		} catch (error: unknown) {
-			console.error(error);
+			// loadVideo handles its own failures; this is a final safety net so an
+			// unexpected rejection can never take down the whole app.
+			reportPlaybackError(currentPlaybackErrorSource(), error);
+		}
 
-			if (
-				!isUnrestrictedPlatform() ||
-				data.video.fallbackPatch === 'youtubejs' ||
-				(error as shaka.extern.Error).code !== 1001
-			)
-				return;
-
-			showVideoRetry = true;
-			if ($playerYouTubeJsFallback) {
-				await reloadVideo();
-			}
+		// Honour the user's "always allow local video fallback" preference.
+		if (
+			playbackError &&
+			$playerYouTubeJsFallback &&
+			isUnrestrictedPlatform() &&
+			!isYTBackend() &&
+			data.video.fallbackPatch !== 'youtubejs'
+		) {
+			await retryPlayback(true);
 		}
 	});
 
@@ -792,6 +1169,8 @@
 		}
 
 		if (watchProgressInterval) clearInterval(watchProgressInterval);
+		stopStallWatchdog();
+		if (streamingFailureRetryTimer) clearTimeout(streamingFailureRetryTimer);
 		if (sabrAdapter) sabrAdapter.dispose();
 		if (showPlayerUiTimeout) clearTimeout(showPlayerUiTimeout);
 
@@ -807,7 +1186,6 @@
 	class:contain-video={!isAndroidTv()}
 	class:full-window={$playerIsInWindowFullscreen}
 	class:tv-contain-video={isAndroidTv()}
-	class:hide={showVideoRetry}
 	class:hide-cursor={!showControls}
 	role="presentation"
 	onmouseenter={showPlayerUI}
@@ -926,30 +1304,50 @@
 			</nav>
 		</nav>
 	</div>
+	{#if playbackError}
+		<div class="player-error" role="alert">
+			<div class="player-error-content surface-container-highest">
+				<h5>{$_('player.playbackErrorTitle')}</h5>
+				<p>{playbackErrorMessage(playbackError.source)}</p>
+				{#if playbackError.detail}
+					<p class="player-error-detail">{playbackError.detail}</p>
+				{/if}
+				<nav class="player-error-actions">
+					<button onclick={() => retryPlayback()} disabled={isRetryingPlayback}>
+						<i>{isRetryingPlayback ? 'hourglass_top' : 'refresh'}</i>
+						{isRetryingPlayback ? $_('player.retrying') : $_('player.retry')}
+					</button>
+				</nav>
+				{#if isUnrestrictedPlatform() && !isYTBackend() && data.video.fallbackPatch !== 'youtubejs'}
+					<p>{$_('player.retryText')}</p>
+					<nav class="player-error-actions">
+						<button
+							class="border"
+							onclick={() => retryPlayback(true)}
+							disabled={isRetryingPlayback}
+						>
+							{$_('player.enableYoutubejsTemp')}
+						</button>
+						<button
+							class="border"
+							onclick={() => {
+								playerYouTubeJsFallback.set(true);
+								retryPlayback(true);
+							}}
+							disabled={isRetryingPlayback}
+						>
+							{$_('player.enableYoutubejsPerm')}
+						</button>
+					</nav>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </div>
 
 {#if data.video.premium}
 	<article class="video-placeholder">
 		<p>{$_('premium')}</p>
-	</article>
-	<div class="space"></div>
-{:else if showVideoRetry}
-	<article class="video-placeholder">
-		{#if $playerYouTubeJsFallback}
-			<p>{$_('player.youtubeJsLoading')}</p>
-			<progress class="circle large"></progress>
-		{:else}
-			<p>{$_('player.retryText')}</p>
-			<button onclick={reloadVideo}>{$_('player.enableYoutubejsTemp')}</button>
-			<div class="space"></div>
-			<button
-				class="border"
-				onclick={async () => {
-					playerYouTubeJsFallback.set(true);
-					await reloadVideo();
-				}}>{$_('player.enableYoutubejsPerm')}</button
-			>
-		{/if}
 	</article>
 	<div class="space"></div>
 {/if}
@@ -1032,5 +1430,51 @@
 
 	.hide-cursor {
 		cursor: none;
+	}
+
+	.player-error {
+		position: absolute;
+		inset: 0;
+		z-index: 20;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 16px;
+		background-color: rgba(0, 0, 0, 0.72);
+		text-align: center;
+		overflow-y: auto;
+	}
+
+	.player-error-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		max-width: 560px;
+		max-height: 100%;
+		padding: 20px;
+		border-radius: var(--border-radius);
+		overflow-y: auto;
+	}
+
+	.player-error-content h5,
+	.player-error-content p {
+		margin: 0;
+	}
+
+	.player-error-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		justify-content: center;
+	}
+
+	.player-error-detail {
+		max-width: 100%;
+		font-size: 0.85em;
+		opacity: 0.8;
+		word-break: break-word;
+		white-space: pre-wrap;
 	}
 </style>

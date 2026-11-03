@@ -1,25 +1,26 @@
 <script lang="ts">
-	import { bookmarkletSaveToUrl } from '$lib/externalSettings/index';
-	import { letterCase, titleCases, type TitleCase } from '$lib/letterCasing';
+	import { bookmarkletSaveToUrl } from '#lib/externalSettings/index';
+	import { letterCase, titleCases, type TitleCase } from '#lib/letterCasing';
 	import { Capacitor } from '@capacitor/core';
 	import { iso31661 } from 'iso-3166';
-	import { _ } from '$lib/i18n';
+	import { isContentRegion } from '#lib/regions';
+	import { _ } from '#lib/i18n/index';
 	import { get } from 'svelte/store';
 	import {
 		getMaterialiousBackendUrl,
 		isUnrestrictedPlatform,
 		remoteMaterialiousSupported
-	} from '$lib/backend';
-	import { timeout, isMobile } from '$lib/utils';
-	import { shareURL } from '$lib/download';
-	import { getPages, type Pages } from '$lib/navPages';
+	} from '#lib/backend';
+	import { timeout, isMobile } from '#lib/utils';
+	import { shareURL } from '#lib/download';
+	import { getPages, type Pages } from '#lib/navPages';
 	import {
 		setInvidiousInstance,
 		goToInvidiousLogin,
 		invidiousLogout,
 		setMaterialiousBackend,
 		removeMaterialiousBackend
-	} from '$lib/auth';
+	} from '#lib/auth';
 	import {
 		invidiousAuthStore,
 		autoLoginStore,
@@ -30,6 +31,7 @@
 		interfaceAutoExpandChapters,
 		interfaceAutoExpandComments,
 		interfaceAutoExpandDesc,
+		interfaceHideShorts,
 		interfaceDefaultPage,
 		interfaceDisableAutoUpdate,
 		interfaceForceCase,
@@ -41,9 +43,9 @@
 		interfacePreserveTranslation,
 		interfaceMobileBackButtonStore
 	} from '../../store';
-	import { isOwnBackend } from '$lib/shared';
+	import { isOwnBackend } from '#lib/shared/index';
 	import ComboBox from '../ComboBox.svelte';
-	import { corsProxyUrl } from '$lib/fetchProxy';
+	import { corsProxyUrl } from '#lib/fetchProxy';
 
 	let invidiousInstance = $state(get(invidiousInstanceStore));
 
@@ -354,6 +356,23 @@
 <div class="field no-margin">
 	<nav class="no-padding">
 		<div class="max">
+			<div>{$_('layout.hideShorts')}</div>
+		</div>
+		<label class="switch" tabindex="0">
+			<input
+				type="checkbox"
+				bind:checked={$interfaceHideShorts}
+				onclick={() => interfaceHideShorts.set(!$interfaceHideShorts)}
+				role="switch"
+			/>
+			<span></span>
+		</label>
+	</nav>
+</div>
+
+<div class="field no-margin">
+	<nav class="no-padding">
+		<div class="max">
 			<div>{$_('layout.preserveTranslation')}</div>
 		</div>
 		<label class="switch" tabindex="0">
@@ -428,12 +447,14 @@
 <ComboBox
 	label={$_('region')}
 	defaultValue={$interfaceRegionStore}
-	options={iso31661.map((region) => {
-		return {
-			label: region.name,
-			value: region.alpha2
-		};
-	})}
+	options={iso31661
+		.filter((region) => isContentRegion(region.alpha2))
+		.map((region) => {
+			return {
+				label: region.name,
+				value: region.alpha2
+			};
+		})}
 	onChange={(value) => interfaceRegionStore.set(value)}
 />
 
