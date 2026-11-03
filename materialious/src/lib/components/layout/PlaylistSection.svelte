@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import ItemsList from '$lib/components/layout/ItemsList.svelte';
-	import type { PlaylistPageVideo } from '$lib/api/model';
+	import ItemsList from '#lib/components/layout/ItemsList.svelte';
+	import type { PlaylistPageVideo } from '#lib/api/model';
 
 	interface Props {
 		title: string;
@@ -12,7 +12,7 @@
 	let { title, playlistId, videos }: Props = $props();
 </script>
 
-<a class="section-link" href={resolve('/playlist/[slug]', { slug: playlistId })}>
+<a class="section-link" href={resolve('/(app)/playlist/[slug]', { slug: playlistId })}>
 	<h6 class="no-margin">{title}</h6>
 	<i>chevron_right</i>
 </a>

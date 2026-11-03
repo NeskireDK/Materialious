@@ -214,7 +214,8 @@
             "lockOrientation": "アスペクト比に合わせて向きを固定",
             "defaultPlaybackSpeed": "既定の再生速度",
             "playerStatistics": "最初からプレイヤー統計情報を表示",
-            "networkChangePause": "ネットワーク変更時に一時停止"
+            "networkChangePause": "ネットワーク変更時に一時停止",
+            "fitScreenByDefault": "デフォルトで画面に合わせる"
         },
         "bookmarklet": "ブックマーク",
         "instanceUrl": "インスタンスのURL",
@@ -314,7 +315,9 @@
             "tab2": "タブ 2",
             "tab3": "タブ 3",
             "tab4": "タブ 4",
-            "reset": "初期設定に戻す"
+            "reset": "初期設定に戻す",
+            "volumeUp": "音量を上げる",
+            "volumeDown": "音量を下げる"
         },
         "showMobileBackButton": "画面上のナビゲーションコントロール",
         "admin": "管理者",
@@ -330,7 +333,8 @@
         "passwordsDoNotMatch": "パスワードが一致しません",
         "passwordResetFailed": "パスワードのリセットに失敗しました。現在のパスワードを確認してください。",
         "passwordResetSuccess": "パスワードのリセットに成功しました",
-        "changePassword": "パスワードの変更"
+        "changePassword": "パスワードの変更",
+        "hideShorts": "ショート動画を隠す"
     },
     "subscribe": "チャンネル登録",
     "invidiousBlockWarning": "Invidious は、現在Googleにブロックされています。このインスタンスで動画が読み込めない場合、{android} 版または {desktop} 版の Materialious でこのインスタンスを使用し、動画取得を直接行う代替接続を使ってください。",

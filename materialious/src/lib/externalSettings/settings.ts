@@ -10,6 +10,7 @@ import {
 	interfaceAmoledTheme,
 	interfaceAutoExpandComments,
 	interfaceAutoExpandDesc,
+	interfaceHideShorts,
 	interfaceDefaultPage,
 	interfaceDisplayThumbnailAvatars,
 	interfaceForceCase,
@@ -23,6 +24,7 @@ import {
 	playerProxyVideosStore,
 	playerSavePlaybackPositionStore,
 	playerTheatreModeByDefaultStore,
+	playerFitScreenByDefaultStore,
 	returnYTDislikesInstanceStore,
 	returnYtDislikesStore,
 	showWarningStore,
@@ -60,9 +62,9 @@ import {
 	interfacePreserveTranslation,
 	interfaceMobileBackButtonStore,
 	subtitleSettings
-} from '$lib/store';
-import { isOwnBackend } from '$lib/shared';
-import { SUPPORTED_THEME_KEYS } from '$lib/shared/theme';
+} from '#lib/store';
+import { isOwnBackend } from '#lib/shared/index';
+import { SUPPORTED_THEME_KEYS } from '#lib/shared/theme';
 
 export type PersistedStore<T> = {
 	name: string;
@@ -145,6 +147,11 @@ export const persistedStores: PersistedStore<any>[] = [
 		schema: zBoolean
 	},
 	{
+		name: 'fitScreenByDefault',
+		store: playerFitScreenByDefaultStore,
+		schema: zBoolean
+	},
+	{
 		name: 'theatreModeByDefault',
 		store: playerTheatreModeByDefaultStore,
 		schema: zBoolean
@@ -212,6 +219,11 @@ export const persistedStores: PersistedStore<any>[] = [
 	{
 		name: 'autoExpandDesc',
 		store: interfaceAutoExpandDesc,
+		schema: zBoolean
+	},
+	{
+		name: 'hideShorts',
+		store: interfaceHideShorts,
 		schema: zBoolean
 	},
 	{

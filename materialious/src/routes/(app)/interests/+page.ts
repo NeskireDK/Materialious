@@ -1,5 +1,5 @@
-import { getPersonalPlaylists } from '$lib/api/index';
-import type { PlaylistPage } from '$lib/api/model';
+import { getPersonalPlaylists } from '#lib/api/index';
+import type { PlaylistPage } from '#lib/api/model';
 
 const SECTION_PLAYLIST_TITLES = ['Music: discover', 'Cars', 'Gaming', 'Science & tech'];
 const VIDEOS_PER_SECTION = 8;

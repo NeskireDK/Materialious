@@ -4,17 +4,25 @@ import { z } from 'zod';
 
 import { persistedStores, ensureBackendPersistedStores, type PersistedStore } from './settings';
 
-import { getPublicEnv } from '$lib/env';
-import { isMaterialiousAccountActive } from '$lib/backend';
-import { addOrUpdateKeyValue, getKeyValue } from '$lib/api/backend/keyvalue';
-import { rawMasterKeyStore } from '$lib/store';
+import { getPublicEnv } from '#lib/env';
+import { isMaterialiousAccountActive } from '#lib/backend';
+import { addOrUpdateKeyValue, getKeyValue } from '#lib/api/backend/keyvalue';
+import { consumeInitialLoadState, hydrateSettings, rawMasterKeyStore } from '#lib/store';
 
 const dontAutoSync = ['authToken'];
 
 export async function syncSettingsToBackend() {
+	// Never push store defaults to the account before Android has finished
+	// loading the locally persisted values.
+	await hydrateSettings();
+
 	if (!isMaterialiousAccountActive() || !get(rawMasterKeyStore)) return;
 
 	ensureBackendPersistedStores();
+
+	// Some stores are only created above, so make sure their initial local
+	// read has completed before remote values are applied.
+	await hydrateSettings();
 
 	await Promise.all(
 		persistedStores.map(async (store) => {
@@ -93,10 +101,7 @@ function setStores(
 	}
 }
 
-export async function loadSettingsFromFile(
-	file: File,
-	storeNames?: string[]
-) {
+export async function loadSettingsFromFile(file: File, storeNames?: string[]) {
 	const fileContents = await file.text();
 
 	let fileJson: Record<any, any> | undefined;
@@ -112,7 +117,7 @@ export async function loadSettingsFromFile(
 	setStores(fileJson, true, allowedNames);
 }
 
-export function loadSettingsFromEnv() {
+export async function loadSettingsFromEnv() {
 	const defaultSettings = getPublicEnv('DEFAULT_SETTINGS');
 
 	if (typeof defaultSettings !== 'string') return;
@@ -123,15 +128,7 @@ export function loadSettingsFromEnv() {
 	if (raw.startsWith('"')) raw = raw.slice(1);
 	if (raw.endsWith('"')) raw = raw.slice(0, -1);
 
-	let isInitialLoad = false;
-	try {
-		if (localStorage.getItem('initialLoadState') === null) {
-			isInitialLoad = true;
-			localStorage.setItem('initialLoadState', '0');
-		}
-	} catch {
-		isInitialLoad = true;
-	}
+	const isInitialLoad = await consumeInitialLoadState();
 
 	try {
 		const parsed = JSON.parse(raw);
