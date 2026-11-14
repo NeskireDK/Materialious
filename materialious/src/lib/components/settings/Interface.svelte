@@ -5,12 +5,7 @@
 	import { iso31661 } from 'iso-3166';
 	import { isContentRegion } from '#lib/regions';
 	import { _ } from '#lib/i18n/index';
-	import { get } from 'svelte/store';
-	import {
-		getMaterialiousBackendUrl,
-		isUnrestrictedPlatform,
-		remoteMaterialiousSupported
-	} from '#lib/backend';
+	import { isUnrestrictedPlatform, remoteMaterialiousSupported } from '#lib/backend';
 	import { timeout, isMobile } from '#lib/utils';
 	import { shareURL } from '#lib/download';
 	import { getPages, type Pages } from '#lib/navPages';
@@ -25,8 +20,8 @@
 		invidiousAuthStore,
 		autoLoginStore,
 		backendInUseStore,
+		materialiousBackendStore,
 		invidiousInstanceStore,
-		interfaceAllowInsecureRequests,
 		interfaceAndroidUseNativeShare,
 		interfaceAutoExpandChapters,
 		interfaceAutoExpandComments,
@@ -45,18 +40,20 @@
 	} from '../../store';
 	import { isOwnBackend } from '#lib/shared/index';
 	import ComboBox from '../ComboBox.svelte';
-	import { corsProxyUrl } from '#lib/fetchProxy';
+	import AllowInsecureRequests from '../AllowInsecureRequests.svelte';
+	import LogoutButton from './LogoutButton.svelte';
 
-	let invidiousInstance = $state(get(invidiousInstanceStore));
+	let invidiousInstance = $derived($invidiousInstanceStore ?? '');
 
 	let invalidInstance = $state(false);
 
-	let materialiousBackend = $state(getMaterialiousBackendUrl());
+	let materialiousBackend = $derived($materialiousBackendStore ?? '');
 
 	let invalidMaterialiousBackend = $state(false);
 
 	async function setMaterialiousInstance(event: Event) {
 		event.preventDefault();
+		if (!remoteMaterialiousSupported()) return;
 		invalidMaterialiousBackend = !(await setMaterialiousBackend(materialiousBackend));
 
 		if (invalidMaterialiousBackend) return;
@@ -66,6 +63,7 @@
 	}
 
 	async function removeMaterialiousInstance() {
+		if (!remoteMaterialiousSupported()) return;
 		await removeMaterialiousBackend();
 
 		await timeout(100);
@@ -87,24 +85,6 @@
 		await timeout(100);
 		location.reload();
 	}
-
-	function allowInsecureRequests() {
-		if (!Capacitor.isNativePlatform()) return;
-		interfaceAllowInsecureRequests.set(!$interfaceAllowInsecureRequests);
-	}
-
-	// Used to toggle rejectUnauthorized in the backend
-	interfaceAllowInsecureRequests.subscribe(async (isAllowed) => {
-		if (Capacitor.getPlatform() === 'android') {
-			if (isAllowed) {
-				await fetch(corsProxyUrl + 'allow-insecure-requests');
-			} else {
-				await fetch(corsProxyUrl + 'deny-insecure-requests');
-			}
-		} else if (Capacitor.getPlatform() === 'electron') {
-			await window.electronAPI.setAllowInsecureSSL(isAllowed);
-		}
-	});
 
 	if (Capacitor.getPlatform() === 'electron') {
 		interfaceDisableAutoUpdate.subscribe((isDisabled) => {
@@ -143,7 +123,7 @@
 						name="invidious-instance"
 						type="text"
 					/>
-					<label tabindex="-1" for="invidious-instance">{$_('layout.instanceUrl')}</label>
+					<label tabindex="-1" for="invidious-instance">{$_('invidiousInstance')}</label>
 					{#if invalidInstance}
 						<span class="error">{$_('invalidInstance')}</span>
 					{/if}
@@ -153,7 +133,10 @@
 				</button>
 			</nav>
 		</form>
-		{#if isOwnBackend()?.internalAuth && $invidiousInstanceStore}
+		{#if isMobile()}
+			<LogoutButton />
+		{/if}
+		{#if (isOwnBackend()?.internalAuth || $materialiousBackendStore) && $invidiousInstanceStore}
 			{#if !$invidiousAuthStore}
 				<button class="surface-container-highest" onclick={goToInvidiousLogin}>
 					<i>link</i>
@@ -188,27 +171,13 @@
 			<div class="space"></div>
 		{/if}
 	{:else}
+		{#if isMobile()}
+			<LogoutButton />
+		{/if}
 		<div class="space"></div>
 	{/if}
 
-	{#if Capacitor.isNativePlatform() && (invalidInstance || $interfaceAllowInsecureRequests)}
-		<div class="field no-margin">
-			<nav class="no-padding">
-				<div class="max">
-					<div>{$_('layout.allowInsecureRequests')}</div>
-				</div>
-				<label class="switch" tabindex="0">
-					<input
-						type="checkbox"
-						bind:checked={$interfaceAllowInsecureRequests}
-						onclick={allowInsecureRequests}
-						role="switch"
-					/>
-					<span></span>
-				</label>
-			</nav>
-		</div>
-	{/if}
+	<AllowInsecureRequests show={invalidInstance || invalidMaterialiousBackend} />
 {/if}
 
 {#if remoteMaterialiousSupported()}

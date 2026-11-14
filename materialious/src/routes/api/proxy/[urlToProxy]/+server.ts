@@ -15,6 +15,7 @@ import fs from 'fs';
 import tls from 'tls';
 
 import { error } from '@sveltejs/kit';
+import { PUBLIC_PROXY_DISABLED, PUBLIC_REQUIRE_BROWSER_COMPANION } from '$app/env/public';
 import { parse as tldParse } from 'tldts';
 import { USER_AGENT } from 'bgutils-js/utils';
 import sodium from 'libsodium-wrappers-sumo';
@@ -96,9 +97,12 @@ async function proxyRequest(
 	urlToProxy: string,
 	userId: string | undefined = undefined
 ): Promise<Response> {
+	if (PUBLIC_PROXY_DISABLED === 'true' || PUBLIC_REQUIRE_BROWSER_COMPANION === 'true') {
+		throw error(404, 'Proxy endpoint disabled');
+	}
+
 	const backendRestrictions = isOwnBackend();
 	if (!backendRestrictions) {
-		// Shouldn't be possible.
 		throw error(400, 'How did you get here?');
 	}
 
@@ -108,7 +112,9 @@ async function proxyRequest(
 
 	let urlToProxyObj: URL;
 	try {
-		urlToProxyObj = new URL(decodeURIComponent(urlToProxy));
+		// SvelteKit already decodes the route parameter. A second decode
+		// changes escaped delimiters inside YouTube's signed live URLs.
+		urlToProxyObj = new URL(urlToProxy);
 	} catch {
 		throw error(400, 'Invalid URL');
 	}

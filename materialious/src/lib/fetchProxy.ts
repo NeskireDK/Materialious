@@ -2,8 +2,10 @@ import { getPublicEnv } from '#lib/env';
 import { isUnrestrictedPlatform } from '#lib/backend';
 import { timeout } from '#lib/utils';
 import { Capacitor } from '@capacitor/core';
+import { Nodejs } from '@capawesome/capacitor-nodejs';
 import sodium from 'libsodium-wrappers-sumo';
 import { isOwnBackend } from './shared';
+import { getNativeProxyToken, TOKEN_HEADER } from './nativeProxyAuth';
 
 export const originalFetch = window.fetch;
 export const corsProxyUrl =
@@ -15,7 +17,12 @@ let mobileNodeLoaded = false;
 
 function needsProxying(target: string): boolean {
 	if (!target.startsWith('http')) return false;
-	return true;
+	if (Capacitor.getPlatform() === 'android') return true;
+	try {
+		return new URL(target).origin !== location.origin;
+	} catch {
+		return true;
+	}
 }
 
 function encodeUrl(url: string): string {
@@ -28,10 +35,14 @@ export const fetchProxied = async (
 ): Promise<Response> => {
 	if (!mobileNodeLoaded && Capacitor.getPlatform() === 'android') {
 		let mobileNodeResp: Response | undefined;
+		let nodeReady = false;
 
-		while (!mobileNodeResp || !mobileNodeResp.ok) {
+		while (!nodeReady || !mobileNodeResp?.ok) {
+			if (!nodeReady) ({ ready: nodeReady } = await Nodejs.isReady());
 			try {
-				mobileNodeResp = await originalFetch(corsProxyUrl + 'check-nodejs');
+				if (!mobileNodeResp?.ok) {
+					mobileNodeResp = await originalFetch(corsProxyUrl + 'check-nodejs');
+				}
 			} catch {
 				// Continue regardless of error
 			}
@@ -43,28 +54,6 @@ export const fetchProxied = async (
 
 	const nonProxiedUrl =
 		requestInput instanceof Request ? requestInput.url : requestInput.toString();
-
-	if (needsProxying(nonProxiedUrl)) {
-		const proxiedUrl = corsProxyUrl + encodeUrl(nonProxiedUrl);
-
-		if (requestInput instanceof Request) {
-			requestInput = new Request(proxiedUrl, {
-				method: requestInput.method,
-				headers: requestInput.headers,
-				body: requestInput.body,
-				mode: requestInput.mode,
-				credentials: requestInput.credentials,
-				cache: requestInput.cache,
-				redirect: requestInput.redirect,
-				referrer: requestInput.referrer,
-				integrity: requestInput.integrity,
-				keepalive: requestInput.keepalive,
-				...(requestInput.body ? { duplex: 'half' } : {})
-			});
-		} else {
-			requestInput = proxiedUrl;
-		}
-	}
 
 	if (isOwnBackend() && Capacitor.getPlatform() === 'web' && requestOptions?.body) {
 		if (requestOptions.body instanceof ArrayBuffer) {
@@ -82,24 +71,51 @@ export const fetchProxied = async (
 		}
 	}
 
+	if (needsProxying(nonProxiedUrl)) {
+		if (window?.materialiousCompanionFetch) {
+			return window.materialiousCompanionFetch(requestInput, requestOptions);
+		}
+
+		const proxiedUrl = corsProxyUrl + encodeUrl(nonProxiedUrl);
+		const headers = new Headers(
+			requestOptions?.headers ??
+				(requestInput instanceof Request ? requestInput.headers : undefined)
+		);
+		if (Capacitor.getPlatform() === 'android') {
+			headers.set(TOKEN_HEADER, await getNativeProxyToken());
+		}
+
+		if (requestInput instanceof Request) {
+			requestInput = new Request(proxiedUrl, {
+				method: requestInput.method,
+				headers,
+				body: requestInput.body,
+				mode: requestInput.mode,
+				credentials: requestInput.credentials,
+				cache: requestInput.cache,
+				redirect: requestInput.redirect,
+				referrer: requestInput.referrer,
+				integrity: requestInput.integrity,
+				keepalive: requestInput.keepalive,
+				signal: requestInput.signal,
+				...(requestInput.body ? { duplex: 'half' } : {})
+			});
+			requestOptions = { ...requestOptions, headers };
+		} else {
+			requestInput = proxiedUrl;
+			requestOptions = { ...requestOptions, headers };
+		}
+	}
+
 	// Use the original fetch with the proxied URL and options
 	return originalFetch(requestInput, requestOptions);
 };
 
 if (
-	isUnrestrictedPlatform() &&
-	Capacitor.getPlatform() !== 'electron' &&
-	getPublicEnv('PROXY_DISABLED') !== 'true'
+	(isUnrestrictedPlatform() &&
+		Capacitor.getPlatform() !== 'electron' &&
+		getPublicEnv('PROXY_DISABLED') !== 'true') ||
+	(typeof window !== 'undefined' && !!window.materialiousCompanionFetch)
 ) {
 	window.fetch = fetchProxied;
-
-	const originalXhrOpen = XMLHttpRequest.prototype.open;
-
-	XMLHttpRequest.prototype.open = function (...args: any[]): void {
-		if (needsProxying(args[1])) {
-			args[1] = corsProxyUrl + encodeUrl(args[1]);
-		}
-		// @ts-expect-error args have any type
-		return originalXhrOpen.apply(this, args);
-	};
 }

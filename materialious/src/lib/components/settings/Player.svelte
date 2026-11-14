@@ -6,8 +6,12 @@
 	import {
 		backendInUseStore,
 		playerAlwaysLoopStore,
+		playerAudioOnlyByDefault,
+		playerAndroidAutoFullscreen,
+		playerAndroidRotateOnTilt,
 		playerAndroidLockOrientation,
 		playerAndroidPauseOnNetworkChange,
+		playerAndroidAutoPip,
 		playerAutoPlayStore,
 		playerAutoplayNextByDefaultStore,
 		playerCCByDefault,
@@ -129,10 +133,24 @@
 
 <div class="field no-margin">
 	<nav class="no-padding">
+		<div class="max"><div>{$_('player.audioOnly')}</div></div>
+		<label class="switch" tabindex="0"
+			><input
+				type="checkbox"
+				bind:checked={$playerAudioOnlyByDefault}
+				role="switch"
+				aria-label={$_('player.audioOnly')}
+			/><span></span></label
+		>
+	</nav>
+</div>
+
+<div class="field no-margin">
+	<nav class="no-padding">
 		<div class="max">
 			<div>{$_('layout.player.ccByDefault')}</div>
 		</div>
-		<label class="switch" tabindex="0">
+		<label class="switch">
 			<input
 				type="checkbox"
 				bind:checked={$playerCCByDefault}
@@ -198,6 +216,34 @@
 {#if Capacitor.getPlatform() === 'android'}
 	<div class="field no-margin">
 		<nav class="no-padding">
+			<div class="max" id="android-auto-fullscreen-label">{$_('layout.player.autoFullscreen')}</div>
+			<label class="switch">
+				<input
+					type="checkbox"
+					bind:checked={$playerAndroidAutoFullscreen}
+					role="switch"
+					aria-labelledby="android-auto-fullscreen-label"
+				/>
+				<span></span>
+			</label>
+		</nav>
+	</div>
+	<div class="field no-margin">
+		<nav class="no-padding">
+			<div class="max" id="android-rotate-on-tilt-label">{$_('layout.player.rotateOnTilt')}</div>
+			<label class="switch">
+				<input
+					type="checkbox"
+					bind:checked={$playerAndroidRotateOnTilt}
+					role="switch"
+					aria-labelledby="android-rotate-on-tilt-label"
+				/>
+				<span></span>
+			</label>
+		</nav>
+	</div>
+	<div class="field no-margin">
+		<nav class="no-padding">
 			<div class="max">
 				<div>{$_('layout.player.lockOrientation')}</div>
 			</div>
@@ -229,9 +275,26 @@
 			</label>
 		</nav>
 	</div>
+
+	<div class="field no-margin">
+		<nav class="no-padding">
+			<div class="max">
+				<div>{$_('layout.player.androidAutoPip')}</div>
+			</div>
+			<label class="switch" tabindex="0">
+				<input
+					type="checkbox"
+					bind:checked={$playerAndroidAutoPip}
+					onclick={() => playerAndroidAutoPip.set(!$playerAndroidAutoPip)}
+					role="switch"
+				/>
+				<span></span>
+			</label>
+		</nav>
+	</div>
 {/if}
 
-{#if isUnrestrictedPlatform()}
+{#if isUnrestrictedPlatform() && $backendInUseStore === 'ivg'}
 	<div class="field no-margin">
 		<nav class="no-padding">
 			<div class="max">

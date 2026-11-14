@@ -7,6 +7,7 @@ export {
 export {
 	playerAutoPlayStore,
 	playerAlwaysLoopStore,
+	playerAudioOnlyByDefault,
 	playerProxyVideosStore,
 	playerSavePlaybackPositionStore,
 	playerTheatreModeByDefaultStore,
@@ -15,6 +16,8 @@ export {
 	playerAutoplayNextByDefaultStore,
 	playerYouTubeJsFallback,
 	playerYouTubeJsAlways,
+	playerAndroidAutoFullscreen,
+	playerAndroidRotateOnTilt,
 	playerAndroidLockOrientation,
 	playerDefaultLanguage,
 	playerCCByDefault,
@@ -22,6 +25,7 @@ export {
 	playerDefaultPlaybackSpeed,
 	playerMiniplayerEnabled,
 	playerAndroidPauseOnNetworkChange,
+	playerAndroidAutoPip,
 	playerPreferredVolumeStore,
 	playerPlaylistHistory,
 	playerState,
@@ -78,6 +82,7 @@ export {
 	rawMasterKeyStore,
 	materialiousBackendStore,
 	authTokenStore,
+	disableSettingsSyncStore,
 	configBackendCache
 } from './backend';
 export { watchHistoryEnabledStore, poTokenCacheStore } from './misc';
@@ -104,3 +109,10 @@ export {
 	channelCacheStore,
 	personalPlaylistsCacheStore
 } from './cache';
+export {
+	videoQueueStore,
+	addVideoToQueue,
+	removeVideoFromQueue,
+	takeNextQueuedVideo
+} from './videoQueue';
+export type { QueuedVideo } from './videoQueue';

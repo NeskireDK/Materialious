@@ -1,27 +1,55 @@
 <script lang="ts">
 	import ContentColumn from '#lib/components/layout/ContentColumn.svelte';
 	import Player from '#lib/components/player/Player.svelte';
+	import TvControls from '#lib/components/player/TvControls.svelte';
 	import Author from '#lib/components/Author.svelte';
 	import Description from '#lib/components/watch/Description.svelte';
 	import LikesDislikes from '#lib/components/watch/LikesDislikes.svelte';
 	import { letterCase } from '#lib/letterCasing';
 	import Mousetrap from 'mousetrap';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { _ } from '#lib/i18n/index';
-	import { playlistCacheStore } from '#lib/store';
+	import { playlistCacheStore, playlistSettingsStore } from '#lib/store';
 	import { fade } from 'svelte/transition';
 	import ItemsList from '#lib/components/layout/ItemsList.svelte';
 	import { getNextFocus } from '@bbc/tv-lrud-spatial';
-	import { keyCodeMap } from '#lib/utils';
+	import { isAndroidTv, keyCodeMap } from '#lib/utils';
+	import type { Segment } from 'sponsorblock-api';
+	import type shaka from 'shaka-player/dist/shaka-player.ui';
+	import TvSettings from '#lib/components/player/settings/TvSettings.svelte';
+	import { goToNextVideo } from '#lib/player/index';
+	import { goto } from '$app/navigation';
+	import { resolveWatchPath } from '#lib/paths';
+	import { isItemFiltered } from '#lib/filtering/index';
 
 	let { data } = $props();
 
 	let playerElement: HTMLMediaElement | undefined = $state();
+	let shakaPlayer: shaka.Player | undefined = $state();
+	// SponsorBlock segments, fetched inside Player and shared with TvControls.
+	let tvSegments: Segment[] = $state([]);
+	let showTvSettings = $state(false);
+	let tvSettings: TvSettings | undefined = $state();
+	// The TV control bar is a row of buttons in TvControls; focus moves along it by
+	// index (←/→) and Down opens the info sheet from any button.
+	let controlsPinned = $state(false);
+	let tvControlsRow: HTMLElement | undefined = $state();
+	let tvTimeline: HTMLElement | undefined = $state();
+	// Overlays opened from the control bar hand focus back to the button they came from.
+	let returnFocusTo: HTMLElement | undefined;
+	let controlsPinTimeout: ReturnType<typeof setTimeout> | undefined;
 	let showInfo = $state(false);
 	let infoPanel: HTMLElement | undefined = $state();
 	let infoScope: HTMLElement | undefined = $state();
 	let playerCurrentTime: number = $state(0);
+	// Single owner of "bar visible": syncControls() derives it from pinned / seeking /
+	// paused. Player's own mouse/auto-hide logic is disabled on TV.
 	let showControls = $state(false);
+	let paused = $state(false);
+	// Bar shown because of a pause. Back dismisses it without resuming; a new pause (or a
+	// key press) brings it back, so it never re-shows by itself.
+	let pauseBar = $state(false);
+	let hasStartedPlaying = false;
 	let currentTime = $state(0);
 	let userManualSeeking = $state(false);
 
@@ -31,22 +59,71 @@
 	let lastUpdate = 0;
 	let infoClosedByEnter = false;
 	let keydownHandledMovement = false;
+	let enterStartedOnControl = false;
 
 	const hasChapters = $derived(data.content.timestamps.length > 0);
 	const hasPlaylist = $derived(!!data.playlistId && data.playlistId in $playlistCacheStore);
 	const hasRecommended = $derived(data.video.recommendedVideos.length > 0);
 
-	function startSeeking(direction: 'left' | 'right') {
-		showControls = true;
+	// Next-video button: playlist successor, else the first unfiltered recommendation.
+	const playlistVideos = $derived(
+		hasPlaylist ? $playlistCacheStore[data.playlistId!].videos : undefined
+	);
+	const nextRecommended = $derived(
+		data.video.recommendedVideos.find((video) => !isItemFiltered(video))
+	);
+	const hasNextVideo = $derived(
+		hasPlaylist
+			? !!playlistVideos &&
+					(playlistVideos.findIndex((video) => video.videoId === data.video.videoId) + 1 <
+						playlistVideos.length ||
+						$playlistSettingsStore[data.playlistId!]?.loop)
+			: !!nextRecommended
+	);
+	const playlistPosition = $derived.by(() => {
+		if (!playlistVideos) return undefined;
+		const index = playlistVideos.findIndex((video) => video.videoId === data.video.videoId);
+		return index === -1 ? undefined : `${index + 1} / ${playlistVideos.length}`;
+	});
 
-		if (!playerElement || showInfo || isSeeking) return true;
+	function syncControls() {
+		showControls = controlsPinned || isSeeking || pauseBar;
+	}
+
+	function startSeeking(direction: 'left' | 'right') {
+		const onTimeline = isTimelineFocused();
+
+		if (!showInfo && !showTvSettings && !onTimeline && (isControlFocused() || paused)) {
+			// Bar focused, or video paused (bar is up): ←/→ walk the button row, never seek.
+			if (isControlFocused()) {
+				const keyCode = keyCodeMap[direction === 'right' ? 'ArrowRight' : 'ArrowLeft'];
+				const next = getNextFocus(document.activeElement, keyCode, tvControlsRow);
+				if (next instanceof HTMLElement) focusControl(next);
+			} else {
+				focusControl(rowButtons()[0]);
+			}
+			pinControls();
+			return false;
+		}
+
+		if (!playerElement || showInfo || showTvSettings || isSeeking) return true;
 
 		userManualSeeking = true;
 		isSeeking = true;
+		syncControls();
 		lastUpdate = performance.now();
 
 		const duration = data.video.lengthSeconds;
 		const base = duration * 0.005; // ~0.5%
+
+		// A tap is shorter than the 100ms seek throttle; on the paused timeline it still
+		// moves one base step.
+		if (onTimeline) {
+			currentTime =
+				direction === 'right'
+					? Math.min(currentTime + base, duration)
+					: Math.max(currentTime - base, 0);
+		}
 
 		function step(now: number) {
 			if (!isSeeking) return;
@@ -78,8 +155,9 @@
 	}
 
 	function stopSeeking() {
+		const wasSeeking = isSeeking;
 		isSeeking = false;
-		showControls = false;
+		syncControls();
 		userManualSeeking = false;
 
 		if (seekRaf !== null) {
@@ -87,7 +165,9 @@
 			seekRaf = null;
 		}
 
-		if (playerElement && !showInfo) {
+		// Only seek when this key press actually scrubbed; a key-up after moving focus
+		// would otherwise re-seek to the current position and stutter the video.
+		if (wasSeeking && playerElement && !showInfo && !showTvSettings) {
 			playerElement.currentTime = currentTime;
 		}
 	}
@@ -98,7 +178,64 @@
 		el.scrollIntoView({ block: 'center', inline: 'nearest' });
 	}
 
+	// preventScroll: focusing inside the clipped player container must not shift the video.
+	function focusControl(element: HTMLElement | undefined) {
+		// The bar toggles `visibility` and a hidden element can't take focus, so retry for a
+		// few frames until the visible state has reached the DOM.
+		let attempts = 0;
+		const tryFocus = () => {
+			element?.focus({ preventScroll: true });
+			if (element && document.activeElement !== element && attempts++ < 10)
+				requestAnimationFrame(tryFocus);
+		};
+		tick().then(tryFocus);
+	}
+
+	// The button row lives in TvControls; buttons carry data-tv-button and render
+	// conditionally, so the row is queried rather than kept as fixed refs.
+	function rowButtons(): HTMLButtonElement[] {
+		return tvControlsRow
+			? Array.from(tvControlsRow.querySelectorAll<HTMLButtonElement>('button[data-tv-button]'))
+			: [];
+	}
+
+	// Paused only: Up moves focus onto the progress bar so Left/Right can scrub.
+	const isTimelineFocused = () => !!tvTimeline && document.activeElement === tvTimeline;
+	const isBarFocused = () => isControlFocused() || isTimelineFocused();
+
+	const isControlFocused = () =>
+		!!tvControlsRow && !!document.activeElement && tvControlsRow.contains(document.activeElement);
+
+	function pinControls() {
+		controlsPinned = true;
+		syncControls();
+
+		clearTimeout(controlsPinTimeout);
+		controlsPinTimeout = setTimeout(unpinControls, 6000);
+	}
+
+	function unpinControls() {
+		if (!controlsPinned) return;
+
+		clearTimeout(controlsPinTimeout);
+		controlsPinned = false;
+		syncControls();
+
+		// While the pause bar is up it keeps its focus.
+		if (!pauseBar && isBarFocused()) (document.activeElement as HTMLElement).blur();
+	}
+
+	// Back/Esc on a visible bar: hide it entirely. A paused video stays paused.
+	function hideBar() {
+		clearTimeout(controlsPinTimeout);
+		controlsPinned = false;
+		pauseBar = false;
+		syncControls();
+		if (isBarFocused()) (document.activeElement as HTMLElement).blur();
+	}
+
 	function openInfo() {
+		unpinControls();
 		showInfo = true;
 
 		tick().then(() => {
@@ -111,9 +248,52 @@
 		});
 	}
 
+	function openTvSettings(opener: HTMLElement) {
+		returnFocusTo = opener;
+		unpinControls();
+		showTvSettings = true;
+	}
+
+	function openInfoFromButton(opener: HTMLElement) {
+		returnFocusTo = opener;
+		openInfo();
+	}
+
+	function playNextVideo() {
+		if (hasPlaylist) {
+			void goToNextVideo(data.video, data.playlistId);
+		} else if (nextRecommended) {
+			goto(resolveWatchPath(nextRecommended.videoId), { replace: isAndroidTv() });
+		}
+	}
+
+	function togglePlayback() {
+		if (!playerElement) return;
+		if (playerElement.paused) playerElement.play();
+		else playerElement.pause();
+	}
+
+	function restoreControlFocus() {
+		if (!returnFocusTo) return;
+
+		const target = returnFocusTo;
+		returnFocusTo = undefined;
+		pinControls();
+		focusControl(target);
+	}
+
 	function closeInfo() {
 		showInfo = false;
 		(document.activeElement as HTMLElement | null)?.blur();
+		restoreControlFocus();
+	}
+
+	function closeTvSettings() {
+		// Back first goes up a level (quality list -> root); only root closes the panel.
+		if (tvSettings?.back()) return;
+		showTvSettings = false;
+		(document.activeElement as HTMLElement | null)?.blur();
+		restoreControlFocus();
 	}
 
 	function handleInfoKeyDown(event: KeyboardEvent) {
@@ -141,10 +321,85 @@
 	}
 
 	function handleBack(event: Event) {
-		if (!showInfo) return;
+		if (showTvSettings) {
+			event.preventDefault();
+			closeTvSettings();
+			return;
+		}
+
+		if (!showInfo) {
+			if (controlsPinned || pauseBar) {
+				event.preventDefault();
+				hideBar();
+			}
+			return;
+		}
 		event.preventDefault();
 		closeInfo();
 	}
+
+	// A pause after playback has started shows the bar with focus on Play; play hides it
+	// again (Enter on Play resumes). The initial not-yet-playing state is not a pause:
+	// the bar stays away while the video loads/buffers.
+	function showPauseBar() {
+		pauseBar = true;
+		syncControls();
+		if (!showInfo && !showTvSettings) focusControl(rowButtons()[0]);
+	}
+
+	function onVideoPause() {
+		if (playerElement?.ended) return;
+		paused = true;
+		if (hasStartedPlaying) showPauseBar();
+	}
+
+	function onVideoPlay() {
+		paused = false;
+		pauseBar = false;
+		unpinControls();
+		syncControls();
+	}
+
+	function onVideoPlaying() {
+		hasStartedPlaying = true;
+	}
+
+	// Autoplay blocked or failed: the video is loaded but stays paused. After a short
+	// grace period (autoplay normally starts right after canplay) show the bar so the
+	// user can press Play.
+	let autoplayFallback: ReturnType<typeof setTimeout> | undefined;
+	function onVideoCanPlay() {
+		if (hasStartedPlaying) return;
+		clearTimeout(autoplayFallback);
+		autoplayFallback = setTimeout(() => {
+			if (!hasStartedPlaying && playerElement?.paused) showPauseBar();
+		}, 2500);
+	}
+
+	$effect(() => {
+		const element = playerElement;
+		if (!element) return;
+
+		// untrack: syncControls() reads other state; without it every pin/pause change
+		// re-ran this effect and reset hasStartedPlaying.
+		untrack(() => {
+			paused = element.paused;
+			hasStartedPlaying = false;
+			pauseBar = false;
+			syncControls();
+		});
+		element.addEventListener('pause', onVideoPause);
+		element.addEventListener('play', onVideoPlay);
+		element.addEventListener('playing', onVideoPlaying);
+		element.addEventListener('canplay', onVideoCanPlay);
+		return () => {
+			clearTimeout(autoplayFallback);
+			element.removeEventListener('pause', onVideoPause);
+			element.removeEventListener('play', onVideoPlay);
+			element.removeEventListener('playing', onVideoPlaying);
+			element.removeEventListener('canplay', onVideoCanPlay);
+		};
+	});
 
 	onMount(() => {
 		window.addEventListener('materialious:back', handleBack);
@@ -159,9 +414,15 @@
 		Mousetrap.bind(
 			'down',
 			() => {
-				if (showInfo) return true;
+				if (showInfo || showTvSettings) return true;
 
-				openInfo();
+				if (isControlFocused()) {
+					returnFocusTo = document.activeElement as HTMLElement;
+					openInfo();
+				} else {
+					pinControls();
+					focusControl(rowButtons()[0]);
+				}
 
 				return false;
 			},
@@ -171,8 +432,20 @@
 		Mousetrap.bind(
 			'up',
 			() => {
+				if (showTvSettings) return true;
+
 				if (!showInfo) {
-					openInfo();
+					if (paused) {
+						// Paused: Up goes to the timeline (showing the bar first if hidden) so the
+						// user can scrub; Down returns to the buttons, which keep the info sheet.
+						if (!isTimelineFocused()) {
+							pauseBar = true;
+							syncControls();
+							focusControl(tvTimeline);
+						}
+					} else if (isControlFocused()) unpinControls();
+					else openInfo();
+
 					return false;
 				}
 
@@ -195,6 +468,8 @@
 		);
 
 		// Arrow key seeking bindings
+		// Up/down act on key-up, so stop the WebView from also moving focus natively on key-down.
+		Mousetrap.bind(['up', 'down'], () => !isBarFocused(), 'keydown');
 		Mousetrap.bind('right', () => startSeeking('right'), 'keydown');
 		Mousetrap.bind('right', stopSeeking, 'keyup');
 		Mousetrap.bind('left', () => startSeeking('left'), 'keydown');
@@ -203,8 +478,18 @@
 		Mousetrap.bind(
 			'esc',
 			() => {
+				if (showTvSettings) {
+					closeTvSettings();
+					return false;
+				}
+
 				if (showInfo) {
 					closeInfo();
+					return false;
+				}
+
+				if (controlsPinned || pauseBar) {
+					hideBar();
 					return false;
 				}
 
@@ -216,20 +501,32 @@
 		Mousetrap.bind(
 			'enter',
 			() => {
+				enterStartedOnControl = isControlFocused();
+				return true;
+			},
+			'keydown'
+		);
+
+		Mousetrap.bind(
+			'enter',
+			() => {
+				if (showTvSettings) return true;
+
+				// Enter on a focused control is a native click, handled by the button itself.
+				// The press may have moved focus away (Play hides the bar), so use the
+				// state captured on key-down or it would toggle playback a second time.
+				if (enterStartedOnControl || isControlFocused()) {
+					enterStartedOnControl = false;
+					return true;
+				}
+
 				if (infoClosedByEnter) {
 					infoClosedByEnter = false;
 					return true;
 				}
 
 				if (!showInfo) {
-					if (playerElement?.paused) {
-						showControls = false;
-						playerElement?.play();
-					} else {
-						showControls = true;
-
-						playerElement?.pause();
-					}
+					togglePlayback();
 					return false;
 				}
 
@@ -241,6 +538,7 @@
 
 	onDestroy(() => {
 		window.removeEventListener('materialious:back', handleBack);
+		clearTimeout(controlsPinTimeout);
 		// unbind() only removes the default action; these were bound on keyup too.
 		Mousetrap.unbind(['up', 'down', 'left', 'right', 'enter', 'esc']);
 		Mousetrap.unbind(['up', 'down', 'left', 'right', 'enter', 'esc'], 'keyup');
@@ -250,13 +548,36 @@
 {#key data.video.videoId}
 	<Player
 		bind:playerElement
+		onShakaPlayer={(player) => (shakaPlayer = player)}
 		bind:currentTime
 		bind:userManualSeeking
+		bind:showControls
+		bind:segments={tvSegments}
+		holdControls={controlsPinned}
 		isEmbed={true}
 		{data}
-		{showControls}
 	/>
 {/key}
+<TvControls
+	bind:rowElement={tvControlsRow}
+	bind:timelineElement={tvTimeline}
+	video={data.video}
+	content={data.content}
+	segments={tvSegments}
+	{playerElement}
+	{currentTime}
+	{userManualSeeking}
+	visible={showControls}
+	{playlistPosition}
+	hasNext={hasNextVideo}
+	onPlayPause={togglePlayback}
+	onNext={playNextVideo}
+	onSettings={openTvSettings}
+	onInfo={openInfoFromButton}
+/>
+{#if showTvSettings && shakaPlayer && playerElement}
+	<TvSettings bind:this={tvSettings} player={shakaPlayer} {playerElement} video={data.video} />
+{/if}
 
 {#if showInfo}
 	<article
@@ -350,6 +671,12 @@
 {/if}
 
 <style>
+	/* The (no-layout) route never gets the app layout that sets this, which left the
+	   buffering spinner stuck to the top of the player. The TV player fills the screen. */
+	:global(#player-container) {
+		--video-player-height: 100vh;
+	}
+
 	#shown-info {
 		position: fixed;
 		bottom: 0;
