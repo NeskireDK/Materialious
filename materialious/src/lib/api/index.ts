@@ -554,7 +554,7 @@ export async function getDownloadFormats(video: VideoPlay): Promise<AvailableFor
 }
 
 export function isDownloadSupported(): boolean {
-	return isElectron() || isOwnBackend() !== null || isCompanionAvailable();
+	return isElectron() || (isOwnBackend() !== null && !isYTBackend()) || isCompanionAvailable();
 }
 
 export async function startDownload(

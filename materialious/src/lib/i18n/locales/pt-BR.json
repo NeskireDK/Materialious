@@ -108,10 +108,18 @@
 			"quality": "Qualidade",
 			"auto": "Auto",
 			"playbackSpeed": "Velocidade de reprodução",
+			"play": "Reproduzir",
+			"pause": "Pausar",
+			"subtitles": "Legendas",
 			"loop": "Repetir",
 			"on": "On",
 			"off": "Off",
-			"language": "Idioma"
+			"language": "Idioma",
+			"playbackControls": "Controles de reprodução",
+			"endsAt": "Termina às {{time}}",
+			"videoInfo": "Informações do vídeo",
+			"timeline": "Linha do tempo",
+			"positionOf": "{{elapsed}} de {{total}}"
 		}
 	},
 	"layout": {

@@ -44,8 +44,9 @@
 	import { isItemFiltered } from '#lib/filtering/index';
 	import PageLoading from '#lib/components/PageLoading.svelte';
 	import Download from '#lib/components/watch/Download.svelte';
+	import SleepTimer from '#lib/components/watch/SleepTimer.svelte';
+	import { getPlatform } from '#lib/platform.ts';
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let { data = $bindable() }: { data: any } = $props();
 
 	let playerElement: HTMLMediaElement | undefined = $state();
@@ -55,7 +56,9 @@
 	let commentSort: 'top' | 'new' = $state('top');
 	let returnYTDislikes: Promise<any> | null = $state(null);
 
-	playerTheatreModeIsActive.set(get(playerTheatreModeByDefaultStore));
+	if (getPlatform() !== 'android')
+		playerTheatreModeIsActive.set(get(playerTheatreModeByDefaultStore));
+	else playerTheatreModeIsActive.set(false);
 
 	const videoId = $derived(data.video?.videoId);
 	$effect(() => {
@@ -469,9 +472,8 @@
 							iconOnly={true}
 							style="margin: 0;"
 						/>
-						{#if !data.video.liveNow}
-							<Download video={data.video} />
-						{/if}
+						<Download video={data.video} />
+
 						<PlaylistManager mode="toggle" videoId={data.video.videoId} />
 					</div>
 				</div>
@@ -588,7 +590,13 @@
 
 						<div class="comment-list">
 							{#each comments.comments as comment (comment)}
-								<Comment {comment} videoId={data.video.videoId}></Comment>
+								<Comment
+									{comment}
+									videoId={data.video.videoId}
+									onTimestampClick={(time) => {
+										if (playerElement) playerElement.currentTime = time;
+									}}
+								/>
 							{/each}
 							{#if comments.continuation}
 								<div class="space"></div>
@@ -605,7 +613,15 @@
 		{#if !$playerTheatreModeIsActive && !$playerIsInWindowFullscreen}
 			<div class="s12 m12 l3 recommended">
 				{#if showTranscript}
-					<Transcript video={data.video} bind:currentTime={playerCurrentTime} />
+					{#key data.video.videoId}
+						<Transcript
+							video={data.video}
+							{playerElement}
+							onSeek={(time) => {
+								if (playerElement) playerElement.currentTime = time;
+							}}
+						/>
+					{/key}
 				{/if}
 				{#if data.playlistId && data.playlistId in $playlistCacheStore}
 					<Playlist video={data.video} playlist={$playlistCacheStore[data.playlistId]} />
@@ -626,105 +642,7 @@
 		{/if}
 	</div>
 
-	<dialog id="pause-timer">
-		<div>
-			<nav class="no-space">
-				<h6 class="max">
-					{#if pauseTimerSeconds > 0}
-						{$_('player.pauseVideoIn')} {humanizeSeconds(pauseTimerRemaining)}
-					{:else}
-						{$_('player.pauseTimer')}
-					{/if}
-				</h6>
-				<button onclick={() => ui('#pause-timer')} class="circle transparent">
-					<i>close</i>
-				</button>
-			</nav>
-
-			<div class="space"></div>
-
-			<div class="grid" style="gap: 0.5em;">
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							pauseTimerSeconds = 300;
-							pauseTimerRemaining = pauseTimerSeconds;
-							setPauseTimer();
-							ui('#pause-timer');
-						}}
-						class:primary={pauseTimerSeconds === 300}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;">5 min</button
-					>
-				</div>
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							pauseTimerSeconds = 600;
-							pauseTimerRemaining = pauseTimerSeconds;
-							setPauseTimer();
-							ui('#pause-timer');
-						}}
-						class:primary={pauseTimerSeconds === 600}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;">10 min</button
-					>
-				</div>
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							pauseTimerSeconds = 1800;
-							pauseTimerRemaining = pauseTimerSeconds;
-							setPauseTimer();
-							ui('#pause-timer');
-						}}
-						class:primary={pauseTimerSeconds === 1800}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;">30 min</button
-					>
-				</div>
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							pauseTimerSeconds = 3600;
-							pauseTimerRemaining = pauseTimerSeconds;
-							setPauseTimer();
-							ui('#pause-timer');
-						}}
-						class:primary={pauseTimerSeconds === 3600}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;">1 hr</button
-					>
-				</div>
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							pauseTimerSeconds = 7200;
-							pauseTimerRemaining = pauseTimerSeconds;
-							setPauseTimer();
-							ui('#pause-timer');
-						}}
-						class:primary={pauseTimerSeconds === 7200}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;">2 hr</button
-					>
-				</div>
-				<div class="s4 m4 l4">
-					<button
-						onclick={() => {
-							clearPauseTimer();
-							sleepTimerStore.set(undefined);
-							ui('#pause-timer');
-						}}
-						class="max"
-						style="width: 100%; padding: 0.75em 0;"
-					>
-						<i>delete</i>
-					</button>
-				</div>
-			</div>
-		</div>
-	</dialog>
+	<SleepTimer bind:pauseTimerSeconds bind:pauseTimerRemaining {setPauseTimer} {clearPauseTimer} />
 {/if}
 
 <style>

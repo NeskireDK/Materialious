@@ -49,7 +49,10 @@ import {
 	interfaceDisableAutoUpdate,
 	interfaceAndroidUseNativeShare,
 	playerAndroidPauseOnNetworkChange,
+	playerAndroidAutoFullscreen,
+	playerAndroidRotateOnTilt,
 	playerAndroidLockOrientation,
+	playerAndroidAutoPip,
 	playerYouTubeJsFallback,
 	playerYouTubeJsAlways,
 	interfaceSearchHistoryEnabled,
@@ -410,8 +413,26 @@ function registerBackendStores() {
 		excludeFromBookmarklet: true
 	});
 	persistedStores.push({
+		name: 'androidAutoFullscreen',
+		store: playerAndroidAutoFullscreen,
+		schema: zBoolean,
+		excludeFromBookmarklet: true
+	});
+	persistedStores.push({
+		name: 'androidRotateOnTilt',
+		store: playerAndroidRotateOnTilt,
+		schema: zBoolean,
+		excludeFromBookmarklet: true
+	});
+	persistedStores.push({
 		name: 'androidLockOrientation',
 		store: playerAndroidLockOrientation,
+		schema: zBoolean,
+		excludeFromBookmarklet: true
+	});
+	persistedStores.push({
+		name: 'androidAutoPip',
+		store: playerAndroidAutoPip,
 		schema: zBoolean,
 		excludeFromBookmarklet: true
 	});

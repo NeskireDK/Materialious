@@ -5,7 +5,7 @@
 - [Caddy](https://caddyserver.com/docs/install)
 - [Node.js](https://nodejs.org/) (latest LTS recommended)
 
-#### Invidious Deployment
+#### Invidious Deployment (Optional) 
 
 Deploy Invidious locally using Docker Compose:
 
@@ -152,6 +152,14 @@ npm run eslint      # Linting
 npm run build       # Production build
 ```
 
+The contributor list is a committed snapshot. When preparing a release, set
+`LATEST_VERSION` in `update_versions.py` and run the script from the repository
+root. The script refreshes `materialious/static/localApi/ghContributors.json`;
+review and commit that snapshot with the version changes before tagging. The
+script needs Python 3, the `requests` package, and access to the GitHub API.
+Normal builds use the committed snapshot so they do not depend on GitHub's live
+contributor count.
+
 ### App Type Overview
 
 Materialious can be built and run in four different configurations, each serving a different platform:
@@ -163,7 +171,7 @@ Materialious can be built and run in four different configurations, each serving
 | **Desktop** | `@sveltejs/adapter-static` + Capacitor Electron | Electron | Linux, macOS, Windows |
 | **Android** | `@sveltejs/adapter-static` + Capacitor Android | Android WebView | Android |
 
-The adapter is selected at build time via the `PUBLIC_BUILD_WITH_BACKEND` environment variable in [`svelte.config.js`](../materialious/svelte.config.js):
+The adapter is selected at build time via the `PUBLIC_BUILD_WITH_BACKEND` environment variable in [`vite.config.ts`](../materialious/vite.config.ts):
 
 ```js
 const useSsr = process.env.PUBLIC_BUILD_WITH_BACKEND === 'true';
@@ -192,7 +200,7 @@ const adapter = useSsr
 
 - Built using `@capacitor-community/electron` — wraps the static SPA build in an Electron shell.
 - The [`electron/`](../materialious/electron/) directory contains its own `package.json`, `capacitor.config.ts`, and [`electron-builder.config.json`](../materialious/electron/electron-builder.config.json).
-- The `capacitor-nodejs` plugin is removed from the desktop build via [`patch_capacitor_plugin.py`](../materialious/electron/patch_capacitor_plugin.py) (it's Android-only).
+- The `@capawesome/capacitor-nodejs` plugin is removed from the desktop build via [`patch_capacitor_plugin.py`](../materialious/electron/patch_capacitor_plugin.py) (it's used by Android).
 - Supports deb, rpm, AppImage, snap (Linux), universal DMG (macOS), and NSIS installer (Windows).
 - Published to GitHub Releases and Snap Store. See [BUILDING](./BUILDING.md) for details.
 
@@ -206,7 +214,7 @@ const adapter = useSsr
       androidScheme: 'https'
   }
   ```
-- Includes `capacitor-nodejs` for running a Node.js runtime directly on the device (useful for YouTube API operations that require a PO token).
+- Includes `@capawesome/capacitor-nodejs` for running a Node.js runtime directly on the device (useful for YouTube API operations that require a PO token).
 - The Android-specific modules live in [`static/nodejsAndroid/`](../materialious/static/nodejsAndroid/).
 - Supports custom Capacitor plugins for Android TV, color theme, music controls, screen orientation, and more (see [`src/lib/android/`](../materialious/src/lib/android/)).
 
@@ -221,7 +229,7 @@ At runtime, the app detects its environment via `Capacitor.getPlatform()`:
 
 Key platform-specific behaviors:
 
-- **Android:** Uses `@capacitor/preferences` instead of `localStorage`, `@capacitor/browser` for OAuth login, music controls via `capacitor-music-controls-plugin`, screen orientation, network status, status bar color theme, and Android TV plugins.
+- **Android:** Uses `@capacitor/preferences` instead of `localStorage`, `@capacitor/browser` for OAuth login, media controls via `@capgo/capacitor-media-session`, screen orientation, network status, status bar color theme, and Android TV plugins.
 - **Electron:** Shows custom back/forward navigation buttons visible only on desktop, different settings UI sections.
 - **Web:** Standard browser APIs (`localStorage`, `fetch`, etc.), PWA service worker, web export/import controls.
 - **Fetch proxy** (`src/lib/fetchProxy.ts`): Routes requests differently per platform — on Android, images are proxied through CORS; on web, they use the configured Invidious instance directly.

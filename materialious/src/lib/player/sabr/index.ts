@@ -16,6 +16,17 @@ const ATTESTATION_RETRIES = 3;
 const PLAYER_RELOAD_RETRIES = 3;
 const PO_TOKEN_REFRESH_COOLDOWN_MS = 15_000;
 
+function usesManifestPlayback(video: VideoPlay): boolean {
+	const info = video.ytjs?.video;
+	return !!(
+		video.liveNow ||
+		info?.basic_info.is_live ||
+		info?.basic_info.is_post_live_dvr ||
+		(info?.basic_info.is_live_content &&
+			(info.streaming_data?.dash_manifest_url || info.streaming_data?.hls_manifest_url))
+	);
+}
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -50,6 +61,7 @@ let poTokenRefresh: { videoId: string; promise: Promise<void> } | null = null;
  * status 3) and by the playback stall watchdog.
  */
 export async function refreshSabrSession(video: VideoPlay): Promise<void> {
+	if (!video.ytjs || usesManifestPlayback(video)) return;
 	// Deduplicate refreshes for the same video, but never let a refresh for a
 	// previous video block the newly playing one.
 	if (poTokenRefresh?.videoId === video.videoId) return poTokenRefresh.promise;
@@ -64,11 +76,10 @@ export async function refreshSabrSession(video: VideoPlay): Promise<void> {
 	const refreshPromise = (async () => {
 		await primeSabrAttestation(video);
 
-		try {
-			await mintPoTokenForVideo(video.videoId);
-		} catch (error) {
-			console.warn('[SABR] Failed to refresh PoToken', error);
-		}
+		// Do not leave a rejected token available if minting fails. A failed
+		// refresh must propagate and must not start the success cooldown.
+		if (get(poTokenCacheStore)?.videoId === video.videoId) poTokenCacheStore.set(undefined);
+		await mintPoTokenForVideo(video.videoId);
 
 		lastPoTokenRefresh = { videoId: video.videoId, at: Date.now() };
 	})();
@@ -85,13 +96,19 @@ export async function refreshSabrSession(video: VideoPlay): Promise<void> {
 
 export async function injectSabr(
 	video: VideoPlay,
-	player: shaka.Player
+	player: shaka.Player,
+	signal?: AbortSignal,
+	onSegmentActivity?: (active: boolean) => void
 ): Promise<SabrStreamingAdapter | null> {
-	if (!video.ytjs || !isUnrestrictedPlatform()) return null;
+	// Live and post-live DVR manifests go straight through Shaka. Do not
+	// rewrite their media GETs into SABR/UMP POSTs or start SABR recovery.
+	if (signal?.aborted || !video.ytjs || !isUnrestrictedPlatform() || usesManifestPlayback(video))
+		return null;
 
 	await primeSabrAttestation(video);
+	if (signal?.aborted) return null;
 
-	const shakaPlayerAdapter = new ShakaPlayerAdapter();
+	const shakaPlayerAdapter = new ShakaPlayerAdapter(onSegmentActivity);
 
 	const sabrAdapter = new SabrStreamingAdapter({
 		playerAdapter: shakaPlayerAdapter,
@@ -108,22 +125,35 @@ export async function injectSabr(
 		}
 	});
 
+	let lastProtectionStatus: number | undefined;
 	shakaPlayerAdapter.setStreamProtectionHandler(async (status) => {
+		if (status !== lastProtectionStatus) {
+			// Status 2 is provisional access; receiving initial media does not
+			// prove that YouTube accepted the token. Log no token or signed URL.
+			console.debug('[SABR] Stream protection status:', status);
+			lastProtectionStatus = status;
+		}
 		if (status === 3) {
 			console.warn('[SABR] Server requested attestation, refreshing PoToken');
 			await refreshSabrSession(video);
 		}
 	});
 
+	let pendingMint: Promise<string> | undefined;
 	sabrAdapter.onMintPoToken(async () => {
+		// Requests built while protection recovery runs must use its new token.
+		if (poTokenRefresh?.videoId === video.videoId) await poTokenRefresh.promise;
 		const cached = get(poTokenCacheStore);
-		if (cached) return cached;
+		if (cached?.videoId === video.videoId) return cached.poToken;
 
+		// Let Shaka retry a mint failure instead of sending an unauthenticated
+		// request, which can use up the server's protection retry budget.
+		// Audio and video can request their next segment simultaneously.
+		pendingMint ??= mintPoTokenForVideo(video.videoId);
 		try {
-			return await mintPoTokenForVideo(video.videoId);
-		} catch (error) {
-			console.warn('[SABR] Failed to mint PoToken on demand', error);
-			return '';
+			return await pendingMint;
+		} finally {
+			pendingMint = undefined;
 		}
 	});
 
@@ -196,16 +226,7 @@ export async function injectSabr(
 		throw lastError instanceof Error ? lastError : new Error('Unable to reload player response');
 	});
 
-	const isLive = video.ytjs.video.basic_info.is_live;
-	const isPostLiveDVR =
-		!!video.ytjs.video.basic_info.is_post_live_dvr ||
-		(video.ytjs.video.basic_info.is_live_content &&
-			!!(
-				video.ytjs.video.streaming_data?.dash_manifest_url ||
-				video.ytjs.video.streaming_data?.hls_manifest_url
-			));
-
-	if (video.ytjs.video.streaming_data && !isPostLiveDVR && !isLive) {
+	if (video.ytjs.video.streaming_data) {
 		sabrAdapter.setStreamingURL(
 			await video.ytjs.innertube.session.player!.decipher(
 				video.ytjs.video.streaming_data?.server_abr_streaming_url
@@ -220,6 +241,10 @@ export async function injectSabr(
 		);
 	}
 
+	if (signal?.aborted) {
+		sabrAdapter.dispose();
+		return null;
+	}
 	sabrAdapter.attach(player);
 
 	return sabrAdapter;

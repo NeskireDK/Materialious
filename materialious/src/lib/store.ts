@@ -5,6 +5,7 @@ export {
 	ifNotWebDefault,
 	playerAutoPlayStore,
 	playerAlwaysLoopStore,
+	playerAudioOnlyByDefault,
 	playerProxyVideosStore,
 	playerSavePlaybackPositionStore,
 	playerTheatreModeByDefaultStore,
@@ -13,6 +14,8 @@ export {
 	playerAutoplayNextByDefaultStore,
 	playerYouTubeJsFallback,
 	playerYouTubeJsAlways,
+	playerAndroidAutoFullscreen,
+	playerAndroidRotateOnTilt,
 	playerAndroidLockOrientation,
 	playerDefaultLanguage,
 	playerCCByDefault,
@@ -20,6 +23,7 @@ export {
 	playerDefaultPlaybackSpeed,
 	playerMiniplayerEnabled,
 	playerAndroidPauseOnNetworkChange,
+	playerAndroidAutoPip,
 	playerPreferredVolumeStore,
 	playerPlaylistHistory,
 	playerState,
@@ -67,6 +71,7 @@ export {
 	rawMasterKeyStore,
 	materialiousBackendStore,
 	authTokenStore,
+	disableSettingsSyncStore,
 	watchHistoryEnabledStore,
 	poTokenCacheStore,
 	filterContentListStore,
@@ -92,6 +97,13 @@ export {
 	channelCacheStore,
 	personalPlaylistsCacheStore
 } from './stores/index';
+export {
+	videoQueueStore,
+	addVideoToQueue,
+	removeVideoFromQueue,
+	takeNextQueuedVideo
+} from './stores/index';
+export type { QueuedVideo } from './stores/index';
 export { isAndroidTv } from './utils';
 export type {
 	PlayerState,

@@ -5,6 +5,11 @@ import type { VideoPlay } from '../api/model';
 import type { ParsedDescription } from '../description';
 
 export const playerAutoPlayStore = persist(writable(true), createStorage(), 'autoPlay');
+export const playerAudioOnlyByDefault = persist(
+	writable(false),
+	createStorage(),
+	'audioOnlyByDefault'
+);
 export const playerAlwaysLoopStore = persist(writable(false), createStorage(), 'alwaysLoop');
 export const playerProxyVideosStore = persist(writable(true), createStorage(), 'proxyVideos');
 export const playerSavePlaybackPositionStore = persist(
@@ -38,6 +43,16 @@ export const playerYouTubeJsFallback = persist(
 	'youTubeJsFallback'
 );
 export const playerYouTubeJsAlways = persist(writable(false), createStorage(), 'youTubeJsAlways');
+export const playerAndroidAutoFullscreen = persist(
+	writable(false),
+	createStorage(),
+	'androidAutoFullscreen'
+);
+export const playerAndroidRotateOnTilt = persist(
+	writable(true),
+	createStorage(),
+	'androidRotateOnTilt'
+);
 export const playerAndroidLockOrientation = persist(
 	writable(true),
 	createStorage(),
@@ -69,6 +84,7 @@ export const playerAndroidPauseOnNetworkChange = persist(
 	createStorage(),
 	'pauseOnNetworkChange'
 );
+export const playerAndroidAutoPip = persist(writable(true), createStorage(), 'androidAutoPip');
 export const playerPreferredVolumeStore: Writable<number> = persist(
 	writable(0.5),
 	createStorage(),
@@ -112,7 +128,7 @@ export const defaultSubtitleSettings: SubtitleSettings = {
 	backgroundColor: 'rgba(0, 0, 0, 0.8)',
 	textShadow: '2px 2px 2px rgba(0,0,0,0.8)',
 	offset: 0,
-	fontFamily: 'inherit',
+	fontFamily: 'var(--font)',
 	alignment: 'center',
 	backgroundOpacity: 0.8
 };

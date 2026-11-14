@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getPublicEnv } from '#lib/env';
 	import {
 		darkModeStore,
 		interfaceAdvancedThemingStore,
@@ -40,6 +41,9 @@
 	import { attemptAutoLogin } from '#lib/auth';
 	import { configBackend } from '#lib/api/backend/index';
 	import { configBackendCache } from '#lib/stores/backend';
+	import { isOwnBackend } from '#lib/shared/index';
+	import Update from '#lib/components/settings/Update.svelte';
+	import BrowserCompanionRequired from '#lib/components/access/BrowserCompanionRequired.svelte';
 
 	let { children } = $props();
 
@@ -177,6 +181,12 @@
 	});
 
 	let webManifestLink = $derived(pwaInfo ? pwaInfo.webManifest.linkTag : '');
+	let browserCompanionRequired = $derived(
+		isOwnBackend()?.requireCompanion === true &&
+			Capacitor.getPlatform() === 'web' &&
+			typeof window !== 'undefined' &&
+			!window.materialiousCompanionFetch
+	);
 </script>
 
 <svelte:head>
@@ -205,4 +215,12 @@
 	{/if}
 </svelte:head>
 
-{@render children?.()}
+{#if browserCompanionRequired}
+	<BrowserCompanionRequired />
+{:else}
+	{@render children?.()}
+{/if}
+
+{#if getPublicEnv('ANDROID_TV_BUILD') === 'true'}
+	<Update promptMode />
+{/if}

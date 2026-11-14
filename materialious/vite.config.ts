@@ -16,6 +16,11 @@ const adapter = useSsr
 export default defineConfig({
 	resolve: {
 		alias: {
+			'#lib/android/tvUpdater': path.resolve(
+				process.env.ANDROID_TV_BUILD === 'true'
+					? './src/lib/android/tvUpdater.ts'
+					: './src/lib/android/tvUpdaterDisabled.ts'
+			),
 			'#lib': path.resolve('./src/lib')
 		},
 		extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.svelte']
@@ -49,13 +54,18 @@ export default defineConfig({
 				short_name: 'Materialious'
 			}
 		}),
-		sveltekit({ preprocess: vitePreprocess(), adapter })
+		sveltekit({
+			preprocess: vitePreprocess(),
+			adapter,
+			version: { name: pkg.version }
+		})
 	],
 	ssr: {
 		noExternal: ['beercss']
 	},
 	define: {
-		'import.meta.env.APP_VERSION': JSON.stringify(pkg.version)
+		'import.meta.env.APP_VERSION': JSON.stringify(pkg.version),
+		'import.meta.env.ANDROID_TV_BUILD': JSON.stringify(process.env.ANDROID_TV_BUILD === 'true')
 	},
 	server: {
 		fs: {
