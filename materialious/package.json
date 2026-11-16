@@ -1,6 +1,6 @@
 {
 	"name": "materialious",
-	"version": "1.18.26",
+	"version": "1.18.27",
 	"private": true,
 	"scripts": {
 		"dev": "npm run build:shared && vite dev",
@@ -21,7 +21,7 @@
 		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-auto": "^8.0.0",
 		"@sveltejs/adapter-node": "^6.0.0",
-		"@sveltejs/adapter-static": "^4.0.0",
+		"@sveltejs/adapter-static": "^4.0.1",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/load-config": "^0.2.2",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
@@ -112,7 +112,7 @@
 		"svelte-awesome-color-picker": "^4.1.3",
 		"svelte-infinite-loading": "^2.0.0",
 		"sveltekit-rate-limiter": "^0.8.0",
-		"tldts": "^7.4.5",
+		"tldts": "^7.5.1",
 		"undici": "^8.10.2",
 		"youtubei.js": "^18.3.0",
 		"zod": "^4.6.5"
